@@ -1,4 +1,4 @@
-import kotlinx.coroutines.runBlocking
+package com.coop.technologies.kotlinInsightApi
 
 interface InsightModel
 

@@ -1,8 +1,9 @@
+package com.coop.technologies.kotlinInsightApi
+
 import com.google.gson.JsonArray
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
-import com.linktime.myHotel.insight.httpClient
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.url
@@ -15,7 +16,7 @@ object InsightUtils {
     private var schemaId: Int = -1
     private var authToken: String = ""
 
-    fun init(schemaId: Int, authToken: String){
+    fun init(schemaId: Int, authToken: String) {
         this.schemaId = schemaId
         this.authToken = authToken
     }
@@ -32,10 +33,7 @@ object InsightUtils {
                 map + (parameter to valuesMap.get(parameter.name?.capitalize()))
             }?.let {
                 kobj.primaryConstructor?.callBy(it) as T
-            }
-        if (result == null) {
-            throw RuntimeException("Object ${clazz.name} could not be loaded")
-        }
+            } ?: throw RuntimeException("Object ${clazz.name} could not be loaded")
         return result
     }
 
@@ -51,9 +49,7 @@ object InsightUtils {
     suspend fun <T> getObject(clazz: Class<T>, id: Int): T {
         val objectName = clazz.simpleName.capitalize()
         val jsonArray = requestInsightObject(objectName, id)
-        val obj = jsonArray.first().let {
-            parseObject(clazz, it.asJsonObject)
-        }
+        val obj = parseObject(clazz, jsonArray.first().asJsonObject)
         return obj
     }
 
@@ -73,19 +69,23 @@ object InsightUtils {
         return JsonParser().parse(json).asJsonObject.get("objectEntries").asJsonArray
     }
 
-    private suspend fun mapAttributes(jsonObject: JsonObject, fieldsMap: Map<String, Class<out Any>>): Map<String, Any?> =
-        jsonObject.get("attributes").asJsonArray.
-            filter {
-                val attributeName = it.asJsonObject.get("objectTypeAttribute").asJsonObject.get("name").asString
-                fieldsMap.containsKey(attributeName)
-            }
+    private suspend fun mapAttributes(
+        jsonObject: JsonObject,
+        fieldsMap: Map<String, Class<out Any>>
+    ): Map<String, Any?> =
+        jsonObject.get("attributes").asJsonArray.filter {
+            val attributeName = it.asJsonObject.get("objectTypeAttribute").asJsonObject.get("name").asString
+            fieldsMap.containsKey(attributeName)
+        }
             .map {
                 val attributeName = it.asJsonObject.get("objectTypeAttribute").asJsonObject.get("name").asString
-                val attributeType = fieldsMap[attributeName] ?:String::class.java
-                val jsonValue = it.asJsonObject.get("objectAttributeValues").asJsonArray.get(0).asJsonObject.get("value")
-                val jsonReference = it.asJsonObject.get("objectAttributeValues").asJsonArray.get(0).asJsonObject.get("referencedObject")
-                val objId = jsonReference?.asJsonObject?.get("id")?.asInt?:-1
-                val objName = jsonReference?.asJsonObject?.get("name")?.asString?:""
+                val attributeType = fieldsMap[attributeName] ?: String::class.java
+                val jsonValue =
+                    it.asJsonObject.get("objectAttributeValues").asJsonArray.get(0).asJsonObject.get("value")
+                val jsonReference =
+                    it.asJsonObject.get("objectAttributeValues").asJsonArray.get(0).asJsonObject.get("referencedObject")
+                val objId = jsonReference?.asJsonObject?.get("id")?.asInt ?: -1
+                val objName = jsonReference?.asJsonObject?.get("name")?.asString ?: ""
                 val value = when {
                     InsightModel::class.java in attributeType.interfaces -> getObject(attributeType, objId)
                     attributeType == InsightName::class.java -> InsightName(objName)
@@ -95,9 +95,9 @@ object InsightUtils {
                 attributeName to value
             }.toMap()
 
-    private fun <R> getAsType(attribute: JsonElement?, attributeType: Class<R> ): Any? {
-        val value = attribute?:return null
-        return when(attributeType::javaClass) {
+    private fun <R> getAsType(attribute: JsonElement?, attributeType: Class<R>): Any? {
+        val value = attribute ?: return null
+        return when (attributeType::javaClass) {
             Int::class.java -> value.asInt
             Double::class.java -> value.asDouble
             Float::class.java -> value.asFloat

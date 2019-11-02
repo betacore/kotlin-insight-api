@@ -1,15 +1,11 @@
-import com.google.gson.JsonParser
-import com.linktime.myHotel.insight.httpClient
-import io.ktor.client.request.get
-import io.ktor.client.request.header
-import io.ktor.client.request.url
+package com.coop.technologies.kotlinInsightApi
 
 object InsightCloudApi {
 
     private val api = InsightUtils
 
     // One Time Initialization
-    fun init(schemaId: Int, authToken: String){
+    fun init(schemaId: Int, authToken: String) {
         api.init(schemaId, authToken)
     }
 
@@ -22,7 +18,7 @@ object InsightCloudApi {
     suspend fun <T> getFilteredObjects(clazz: Class<T>, iql: String): List<T> =
         throw NotImplementedError()
 
-    suspend fun <T> createObject(obj: T) :  T =
+    suspend fun <T> createObject(obj: T): T =
         throw NotImplementedError()
 
     suspend fun <T> deleteObject(clazz: Class<T>, id: Int): Boolean =
@@ -30,13 +26,6 @@ object InsightCloudApi {
 
     suspend fun <T> updateObject(obj: T, id: Int): T =
         throw NotImplementedError()
-
-
-
-
-
-
-
 
 
 }
