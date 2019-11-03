@@ -1,6 +1,8 @@
 steps:
   - build: &build
       name: build
+      caches:
+        - gradle
       script:
         - ./gradlew test
 
