@@ -1,0 +1,11 @@
+steps:
+  - build: &build
+      name: build
+      script:
+        - ./gradlew build -PdevMode=false
+        - -/gradlew test
+
+pipelines:
+
+  default:
+    - step: *build

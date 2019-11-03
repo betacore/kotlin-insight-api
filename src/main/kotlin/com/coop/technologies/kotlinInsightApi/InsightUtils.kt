@@ -38,7 +38,7 @@ object InsightUtils {
     }
 
     suspend fun <T> getObjects(clazz: Class<T>): List<T> {
-        val objectName = clazz.simpleName.capitalize()
+        val objectName = clazz.simpleName.replace(Regex("[0-9]"),"").split("(?=\\p{Upper})")[0].capitalize()
         val jsonArray = requestInsightObjects(objectName)
         val objects = jsonArray.map {
             parseObject(clazz, it.asJsonObject)
@@ -47,7 +47,7 @@ object InsightUtils {
     }
 
     suspend fun <T> getObject(clazz: Class<T>, id: Int): T {
-        val objectName = clazz.simpleName.capitalize()
+        val objectName = clazz.simpleName.replace(Regex("[0-9]"),"").split("(?=\\p{Upper})")[0].capitalize()
         val jsonArray = requestInsightObject(objectName, id)
         val obj = parseObject(clazz, jsonArray.first().asJsonObject)
         return obj
@@ -87,7 +87,7 @@ object InsightUtils {
                 val objId = jsonReference?.asJsonObject?.get("id")?.asInt ?: -1
                 val objName = jsonReference?.asJsonObject?.get("name")?.asString ?: ""
                 val value = when {
-                    InsightModel::class.java in attributeType.interfaces -> getObject(attributeType, objId)
+                    attributeType.superclass == InsightModel::class.java -> getObject(attributeType as Class<InsightEntity>, objId)
                     attributeType == InsightName::class.java -> InsightName(objName)
                     attributeType == InsightId::class.java -> InsightId(objId)
                     else -> getAsType(jsonValue, attributeType::class.java)
