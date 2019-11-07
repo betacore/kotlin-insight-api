@@ -8,10 +8,60 @@ data class InsightId(
     val value: Int
 )
 
-abstract class InsightEntity() {
-    abstract val id: Int
-}
+interface InsightEntity
 
+data class InsightObjectEntries(
+    val objectEntries: List<InsightObject>
+)
+
+data class InsightObject(
+    val id: Int,
+    val label: String,
+    val objectKey: String,
+    val objectType: ObjectType,
+    val attributes: List<InsightAttribute>
+)
+
+data class ObjectType(
+    val id: Int,
+    val name: String,
+    val objectSchemaId: Int
+)
+
+data class InsightObjectAttribute(
+    val id: Int,
+    val objectTypeAttribute: List<InsightAttribute>
+)
+
+data class InsightAttribute(
+    val id: Int,
+    val objectTypeAttribute: ObjectTypeAttribute?,
+    val objectTypeAttributeId: Int,
+    val objectId: Int,
+    val objectAttributeValues: List<ObjectAttributeValue>
+)
+
+data class ObjectTypeAttribute (
+    val id: Int,
+    val name: String,
+    val referenceObjectTypeId: Int,
+    val referenceObjectType: ObjectType
+)
+
+data class InsightReference(
+    val objectType: String,
+    val objectId: Int,
+    val clazzToParse: Class<out InsightEntity>
+)
+
+data class ObjectAttributeValue(
+    val value: Any?,
+    val displayValude: Any?
+)
+
+data class InsightAttributeEntry (
+    val value : Any
+)
 
 //suspend fun InsightEntity.save() {
 //    InsightCloudApi.updateObject(this, this.id)

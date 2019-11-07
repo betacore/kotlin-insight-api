@@ -6,7 +6,9 @@ import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import io.ktor.client.request.get
 import io.ktor.client.request.header
+import io.ktor.client.request.post
 import io.ktor.client.request.url
+import io.ktor.util.url
 import java.lang.IllegalStateException
 import kotlin.reflect.KParameter
 import kotlin.reflect.full.primaryConstructor
@@ -22,6 +24,26 @@ object InsightUtils {
     fun init(schemaId: Int, authToken: String) {
         this.schemaId = schemaId
         this.authToken = authToken
+    }
+
+    suspend fun <T: InsightEntity> getObjects(clazz: Class<T>): List<T> {
+        val objectName = mapping[clazz]?:throw IllegalStateException("No mapping defined for class ${clazz.simpleName}")
+        val jsonArray = requestInsightObjects(objectName)
+        val objects = jsonArray.map {
+            parseObject(clazz, it.asJsonObject)
+        }
+        return objects
+    }
+
+    suspend fun <T: InsightEntity> getObject(clazz: Class<T>, id: Int): T {
+        val objectName = mapping[clazz]?:throw IllegalStateException("No mapping defined for class ${clazz.simpleName}")
+        val jsonArray = requestInsightObject(objectName, id)
+        val obj = parseObject(clazz, jsonArray.first().asJsonObject)
+        return obj
+    }
+
+    suspend fun <T: InsightEntity> updateObject(obj: T) {
+
     }
 
     private suspend fun <T> parseObject(clazz: Class<T>, jsonObject: JsonObject): T {
@@ -40,20 +62,17 @@ object InsightUtils {
         return result
     }
 
-    suspend fun <T: InsightEntity> getObjects(clazz: Class<T>): List<T> {
-        val objectName = mapping[clazz]?:throw IllegalStateException("No mapping defined for class ${clazz.simpleName}")
-        val jsonArray = requestInsightObjects(objectName)
-        val objects = jsonArray.map {
-            parseObject(clazz, it.asJsonObject)
+    private suspend fun <T: InsightEntity> requestInsightObjectUpdate(obj: T) {
+        val json = httpClient().post<String>() {
+            url("$BASE_URL/rest/insight/1.0/object/create")
+            header("Authorization", "Bearer $authToken")
+            body
         }
-        return objects
+        //return JsonParser().parse(json).asJsonObject.get("objectEntries").asJsonArray
     }
 
-    suspend fun <T: InsightEntity> getObject(clazz: Class<T>, id: Int): T {
-        val objectName = mapping[clazz]?:throw IllegalStateException("No mapping defined for class ${clazz.simpleName}")
-        val jsonArray = requestInsightObject(objectName, id)
-        val obj = parseObject(clazz, jsonArray.first().asJsonObject)
-        return obj
+    private fun <T: InsightEntity> parseToRequestAttributes(): Map<String, Any> {
+        return emptyMap()
     }
 
     private suspend fun requestInsightObjects(objType: String): JsonArray {

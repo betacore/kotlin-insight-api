@@ -3,22 +3,23 @@ import com.typesafe.config.ConfigFactory
 import junit.framework.TestCase
 import kotlinx.coroutines.runBlocking
 
-class Company(
-    override val id: Int,
+data class Company(
+    val id: Int,
     val name: String,
-    val country: InsightName
-) : InsightEntity()
+    val country: String
+) : InsightEntity
 
-class Company2(
-    override val id: Int,
+data class Company2(
+    val id: Int,
     val name: String,
     val country: Country
-) : InsightEntity()
+) : InsightEntity
 
 data class Country(
-    override val id: Int,
-    val name: String
-) : InsightEntity()
+    val id: Int,
+    val name: String,
+    val shortName: String
+): InsightEntity
 
 class MainTest : TestCase() {
 
@@ -28,30 +29,38 @@ class MainTest : TestCase() {
         val config = ConfigFactory.parseResources("test.conf").resolve()
         val authToken = config.getString("conf.authToken")
         InsightCloudApi.init(1, authToken)
-        InsightCloudApi.registerClass(Company::class.java, "Company")
-        InsightCloudApi.registerClass(Company2::class.java, "Company")
-        InsightCloudApi.registerClass(Country::class.java, "Country")
     }
 
-    fun test1() {
-        println("#### Starting test1")
-        val companies = runBlocking {
-            InsightCloudApi.getObjects(Company::class.java)
+    fun test1(){
+        val objs = runBlocking {
+            InsightCloudApi.getObjects("Company")
+        }
+        assertTrue(objs.size == 1)
+        val companies = objs.map {
+            runBlocking { InsightCloudApi.parseInsightObjectToClass(Company::class.java, it) }
         }
         assertTrue(companies.size == 1)
-        assertTrue(companies.first().name == "Test Gmbh")
-        assertTrue(companies.first().country.value == "Germany")
+        val company = companies.first()
+        assertTrue(company.id == 1)
+        assertTrue(company.name == "Test Gmbh")
+        assertTrue(company.country == "Germany")
     }
 
     fun test2(){
-        println("#### Starting test2")
-        val companies = runBlocking {
-            InsightCloudApi.getObjects(Company2::class.java)
+        val objs = runBlocking {
+            InsightCloudApi.getObjects("Company")
+        }
+        assertTrue(objs.size == 1)
+        val companies = objs.map {
+            runBlocking { InsightCloudApi.parseInsightObjectToClass(Company2::class.java, it) }
         }
         assertTrue(companies.size == 1)
-        assertTrue(companies.first().id == 1)
-        assertTrue(companies.first().name == "Test Gmbh")
-        assertTrue(companies.first().country.id == 4)
-        assertTrue(companies.first().country.name == "Germany")
+        val company = companies.first()
+        assertTrue(company.id == 1)
+        assertTrue(company.name == "Test Gmbh")
+        assertTrue(company.country.name == "Germany")
+        assertTrue(company.country.shortName == "DE")
     }
+
+
 }
