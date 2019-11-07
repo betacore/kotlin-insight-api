@@ -9,10 +9,14 @@ object InsightCloudApi {
         api.init(schemaId, authToken)
     }
 
-    suspend fun <T> getObjects(clazz: Class<T>): List<T> =
+    fun registerClass(clazz: Class<out InsightEntity>, objectName: String) {
+        api.mapping[clazz] = objectName
+    }
+
+    suspend fun <T: InsightEntity> getObjects(clazz: Class<T>): List<T> =
         api.getObjects(clazz)
 
-    suspend fun <T> getObject(clazz: Class<T>, id: Int): T =
+    suspend fun <T: InsightEntity> getObject(clazz: Class<T>, id: Int): T =
         api.getObject(clazz, id)
 
     suspend fun <T> getFilteredObjects(clazz: Class<T>, iql: String): List<T> =

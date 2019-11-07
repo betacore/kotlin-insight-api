@@ -7,6 +7,7 @@ import com.google.gson.JsonParser
 import io.ktor.client.request.get
 import io.ktor.client.request.header
 import io.ktor.client.request.url
+import java.lang.IllegalStateException
 import kotlin.reflect.KParameter
 import kotlin.reflect.full.primaryConstructor
 
@@ -15,6 +16,8 @@ object InsightUtils {
     private val BASE_URL = "https://insight-api.riada.io"
     private var schemaId: Int = -1
     private var authToken: String = ""
+    val mapping: MutableMap<Class<out InsightEntity>, String> = mutableMapOf()
+
 
     fun init(schemaId: Int, authToken: String) {
         this.schemaId = schemaId
@@ -37,8 +40,8 @@ object InsightUtils {
         return result
     }
 
-    suspend fun <T> getObjects(clazz: Class<T>): List<T> {
-        val objectName = clazz.simpleName.replace(Regex("[0-9]"),"").split("(?=\\p{Upper})")[0].capitalize()
+    suspend fun <T: InsightEntity> getObjects(clazz: Class<T>): List<T> {
+        val objectName = mapping[clazz]?:throw IllegalStateException("No mapping defined for class ${clazz.simpleName}")
         val jsonArray = requestInsightObjects(objectName)
         val objects = jsonArray.map {
             parseObject(clazz, it.asJsonObject)
@@ -46,8 +49,8 @@ object InsightUtils {
         return objects
     }
 
-    suspend fun <T> getObject(clazz: Class<T>, id: Int): T {
-        val objectName = clazz.simpleName.replace(Regex("[0-9]"),"").split("(?=\\p{Upper})")[0].capitalize()
+    suspend fun <T: InsightEntity> getObject(clazz: Class<T>, id: Int): T {
+        val objectName = mapping[clazz]?:throw IllegalStateException("No mapping defined for class ${clazz.simpleName}")
         val jsonArray = requestInsightObject(objectName, id)
         val obj = parseObject(clazz, jsonArray.first().asJsonObject)
         return obj
@@ -87,13 +90,16 @@ object InsightUtils {
                 val objId = jsonReference?.asJsonObject?.get("id")?.asInt ?: -1
                 val objName = jsonReference?.asJsonObject?.get("name")?.asString ?: ""
                 val value = when {
-                    attributeType.superclass == InsightModel::class.java -> getObject(attributeType as Class<InsightEntity>, objId)
+                    attributeType.superclass == InsightEntity::class.java -> getObject(attributeType as Class<InsightEntity>, objId)
                     attributeType == InsightName::class.java -> InsightName(objName)
                     attributeType == InsightId::class.java -> InsightId(objId)
                     else -> getAsType(jsonValue, attributeType::class.java)
                 }
                 attributeName to value
-            }.toMap()
+
+            }
+            .let {  it + ("Id" to jsonObject.get("id").asInt)}
+            .toMap()
 
     private fun <R> getAsType(attribute: JsonElement?, attributeType: Class<R>): Any? {
         val value = attribute ?: return null
