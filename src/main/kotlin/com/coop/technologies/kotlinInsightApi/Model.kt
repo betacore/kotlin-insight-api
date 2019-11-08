@@ -11,7 +11,7 @@ data class InsightId(
 abstract class InsightEntity {
     var id: Int = -1
     var key: String = ""
-    abstract val name: String
+    abstract var name: String
 }
 
 data class ObjectTypeSchema(

@@ -6,22 +6,22 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Test
 
 data class Company(
-    override val name: String,
+    override var name: String,
     val country: String
 ) : InsightEntity()
 
 data class Company2(
-    override val name: String,
+    override var name: String,
     val country: Country
 ) : InsightEntity()
 
 data class Country(
-    override val name: String,
-    val shortName: String
+    override var name: String,
+    var shortName: String
 ) : InsightEntity()
 
 data class SimpleCountry(
-    override val name: String,
+    override var name: String,
     val shortName: String
 ) : InsightEntity()
 
@@ -123,6 +123,29 @@ class MainTest : TestCase() {
             assertTrue(countries.size == 1)
             assertTrue(countries.first().shortName == "DE")
             assertTrue(countries.first().name == "Germany")
+        }
+    }
+
+    fun testUpdate(){
+        runBlocking {
+            val country = InsightCloudApi.getObjectByName(Country::class.java, "Germany")
+            assertTrue(country!!.name == "Germany")
+            assertTrue(country.shortName == "DE")
+            country.shortName = "ED"
+
+            val newCountry = InsightCloudApi.updateObject(country)
+            assertTrue(newCountry!!.name == "Germany")
+            assertTrue(newCountry.shortName == "ED")
+
+            val countryAfterUpdate = InsightCloudApi.getObjectByName(Country::class.java, "Germany")
+            assertTrue(countryAfterUpdate!!.name == "Germany")
+            assertTrue(countryAfterUpdate.shortName == "ED")
+            country.shortName = "DE"
+            InsightCloudApi.updateObject(country)
+
+            val countryAfterReUpdate = InsightCloudApi.getObjectByName(Country::class.java, "Germany")
+            assertTrue(countryAfterReUpdate!!.name == "Germany")
+            assertTrue(countryAfterReUpdate.shortName == "DE")
         }
     }
 }

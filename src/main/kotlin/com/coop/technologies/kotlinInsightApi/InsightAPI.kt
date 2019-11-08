@@ -238,8 +238,23 @@ object InsightCloudApi {
         return true
     }
 
-    suspend fun <T> updateObject(obj: T, id: Int): T =
-        throw NotImplementedError()
+    suspend fun <T: InsightEntity> updateObject(obj: T): T {
+        reloadSchema()
+        val schema = objectSchemas.filter { it.name == mapping.get(obj::class.java) }.first()
+        val resolvedObj = resolveReferences(obj)
+
+        val editItem = parseObjectToObjectTypeAttributes(resolvedObj, schema)
+        val json = httpClient().put<String> {
+            url("$BASE_URL/rest/insight/1.0/object/${obj.id}")
+            header("Authorization", "Bearer $authToken")
+            contentType(ContentType.Application.Json)
+            body = editItem
+        }
+        val jsonObject = JsonParser().parse(json).asJsonObject
+        obj.id = jsonObject.get("id").asInt
+        obj.key = jsonObject.get("objectKey").asString
+        return obj
+    }
 
 
 }
