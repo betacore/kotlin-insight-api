@@ -2,24 +2,27 @@ import com.coop.technologies.kotlinInsightApi.*
 import com.typesafe.config.ConfigFactory
 import junit.framework.TestCase
 import kotlinx.coroutines.runBlocking
+import org.junit.Test
 
 data class Company(
-    val id: Int,
-    val name: String,
+    override val name: String,
     val country: String
-) : InsightEntity
+) : InsightEntity()
 
 data class Company2(
-    val id: Int,
-    val name: String,
+    override val name: String,
     val country: Country
-) : InsightEntity
+) : InsightEntity()
 
 data class Country(
-    val id: Int,
-    val name: String,
+    override val name: String,
     val shortName: String
-): InsightEntity
+) : InsightEntity()
+
+data class SimpleCountry(
+    override val name: String,
+    val shortName: String
+) : InsightEntity()
 
 class MainTest : TestCase() {
 
@@ -29,15 +32,15 @@ class MainTest : TestCase() {
         val config = ConfigFactory.parseResources("test.conf").resolve()
         val authToken = config.getString("conf.authToken")
         InsightCloudApi.init(1, authToken)
+        InsightCloudApi.registerClass(Company::class.java, "Company")
+        InsightCloudApi.registerClass(Company2::class.java, "Company")
+        InsightCloudApi.registerClass(Country::class.java, "Country")
+        InsightCloudApi.registerClass(SimpleCountry::class.java, "Country")
     }
 
-    fun test1(){
-        val objs = runBlocking {
-            InsightCloudApi.getObjects("Company")
-        }
-        assertTrue(objs.size == 1)
-        val companies = objs.map {
-            runBlocking { InsightCloudApi.parseInsightObjectToClass(Company::class.java, it) }
+    fun testObjectListWithFlatReference() {
+        val companies = runBlocking {
+            InsightCloudApi.getObjects(Company::class.java)
         }
         assertTrue(companies.size == 1)
         val company = companies.first()
@@ -46,13 +49,9 @@ class MainTest : TestCase() {
         assertTrue(company.country == "Germany")
     }
 
-    fun test2(){
-        val objs = runBlocking {
-            InsightCloudApi.getObjects("Company")
-        }
-        assertTrue(objs.size == 1)
-        val companies = objs.map {
-            runBlocking { InsightCloudApi.parseInsightObjectToClass(Company2::class.java, it) }
+    fun testObjectListWithResolvedReference() {
+        val companies = runBlocking {
+            InsightCloudApi.getObjects(Company2::class.java)
         }
         assertTrue(companies.size == 1)
         val company = companies.first()
@@ -62,5 +61,59 @@ class MainTest : TestCase() {
         assertTrue(company.country.shortName == "DE")
     }
 
+    fun testObjectById() {
+        val company = runBlocking {
+            InsightCloudApi.getObject(Company::class.java, 1)!!
+        }
+        assertTrue(company.id == 1)
+        assertTrue(company.name == "Test Gmbh")
+        assertTrue(company.country == "Germany")
+    }
 
+    fun testSchemaLoad() {
+        runBlocking {
+            InsightCloudApi.reloadSchema()
+        }
+        val schemas = InsightCloudApi.objectSchemas
+    }
+
+
+    fun testCreateAndDelete() {
+        runBlocking {
+            // Check England does not exist
+            val countryBeforeCreate = InsightCloudApi.getObjectByName(Country::class.java, "England")
+            val companyBeforeCreate = InsightCloudApi.getObjectByName(Company2::class.java, "MyTestCompany Gmbh")
+            assertTrue(countryBeforeCreate == null)
+            assertTrue(companyBeforeCreate == null)
+
+            // Create and check direct result
+            val country = Country("England", "GB")
+            val company = Company2("MyTestCompany Gmbh", country)
+            val createdCompany = InsightCloudApi.createObject(company)
+            assertTrue(createdCompany.id > 0)
+            assertTrue(createdCompany.key.isNotBlank())
+            assertTrue(createdCompany.country.id > 0)
+            assertTrue(createdCompany.country.key.isNotBlank())
+
+            // Check England does exists
+            val countryAfterCreate = InsightCloudApi.getObjectByName(Country::class.java, "England")
+            val companyAfterCreate = InsightCloudApi.getObjectByName(Company2::class.java, "MyTestCompany Gmbh")
+            assertTrue(countryAfterCreate!!.id == createdCompany.country.id)
+            assertTrue(countryAfterCreate.key == createdCompany.country.key)
+            assertTrue(countryAfterCreate.name == createdCompany.country.name)
+            assertTrue(countryAfterCreate.shortName == createdCompany.country.shortName)
+            assertTrue(companyAfterCreate!!.id == createdCompany.id)
+            assertTrue(companyAfterCreate.key == createdCompany.key)
+            assertTrue(companyAfterCreate.name == createdCompany.name)
+
+            // Check Delete
+            InsightCloudApi.deleteObject(createdCompany.id)
+            InsightCloudApi.deleteObject(createdCompany.country.id)
+            val companyAfterDelete = InsightCloudApi.getObject(Company2::class.java, createdCompany.id)
+            val countryAfterDelete = InsightCloudApi.getObject(Country::class.java, createdCompany.country.id)
+            assertTrue(companyAfterDelete == null)
+            assertTrue(countryAfterDelete == null)
+        }
+
+    }
 }

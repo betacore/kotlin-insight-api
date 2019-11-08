@@ -8,7 +8,36 @@ data class InsightId(
     val value: Int
 )
 
-interface InsightEntity
+abstract class InsightEntity {
+    var id: Int = -1
+    var key: String = ""
+    abstract val name: String
+}
+
+data class ObjectTypeSchema(
+    val id: Int,
+    val name: String,
+    var attributes: List<ObjectTypeSchemaAttribute>
+)
+
+data class ObjectEditItem(
+    val objectTypeId: Int,
+    val attributes: List<ObjectEditItemAttribute>
+)
+
+data class ObjectEditItemAttribute(
+    val objectTypeAttributeId: Int,
+    val objectAttributeValues: List<ObjectEditItemAttributeValue>
+)
+
+data class ObjectEditItemAttributeValue(
+    val value: Any?
+)
+
+data class ObjectTypeSchemaAttribute(
+    val id: Int,
+    val name: String
+)
 
 data class InsightObjectEntries(
     val objectEntries: List<InsightObject>

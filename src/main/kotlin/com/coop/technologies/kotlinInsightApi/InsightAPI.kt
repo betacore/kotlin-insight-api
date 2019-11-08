@@ -1,10 +1,12 @@
 package com.coop.technologies.kotlinInsightApi
 
 import com.google.gson.JsonParser
-import io.ktor.client.request.get
-import io.ktor.client.request.header
-import io.ktor.client.request.url
+import io.ktor.client.request.*
+import io.ktor.http.ContentType
+import io.ktor.http.contentType
 import kotlin.reflect.KParameter
+import kotlin.reflect.KProperty1
+import kotlin.reflect.full.memberProperties
 import kotlin.reflect.full.primaryConstructor
 
 object InsightCloudApi {
@@ -13,6 +15,7 @@ object InsightCloudApi {
     private var schemaId: Int = -1
     private var authToken: String = ""
     val mapping: MutableMap<Class<out InsightEntity>, String> = mutableMapOf()
+    var objectSchemas: List<ObjectTypeSchema> = emptyList()
 
     // One Time Initialization
     fun init(schemaId: Int, authToken: String) {
@@ -24,23 +27,72 @@ object InsightCloudApi {
         this.mapping[clazz] = objectName
     }
 
-    suspend fun getObjects(objType: String): List<InsightObject> {
-        val objects = httpClient().get<InsightObjectEntries> {
-            url("$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&iql=objectType=$objType&includeTypeAttributes=true")
+    suspend fun reloadSchema() {
+        val schemas = httpClient().get<List<ObjectTypeSchema>> {
+            url("$BASE_URL/rest/insight/1.0/objectschema/1/objecttypes/flat")
             header("Authorization", "Bearer $authToken")
         }
-        return objects.objectEntries
+        val fullSchemas = schemas.map {
+            val attributes = httpClient().get<List<ObjectTypeSchemaAttribute>> {
+                url("$BASE_URL/rest/insight/1.0/objecttype/${it.id}/attributes")
+                header("Authorization", "Bearer $authToken")
+            }
+            it.attributes = attributes
+            it
+        }
+        objectSchemas = fullSchemas
     }
 
-    suspend fun getObject(objType: String, id: Int): InsightObject {
+    suspend fun <T : InsightEntity> getObjectsRaw(clazz: Class<T>): List<InsightObject> {
+        val objectName = mapping.get(clazz) ?: ""
+        return httpClient().get<InsightObjectEntries> {
+            url("$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&iql=objectType=$objectName&includeTypeAttributes=true")
+            header("Authorization", "Bearer $authToken")
+        }.objectEntries
+    }
+
+    suspend fun <T : InsightEntity> getObjectRaw(clazz: Class<T>, id: Int): InsightObject? {
+        val objectName = mapping.get(clazz) ?: ""
+        return httpClient().get<InsightObjectEntries> {
+            url("$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&iql=objectType=$objectName and objectId=$id&includeTypeAttributes=true")
+            header("Authorization", "Bearer $authToken")
+        }.objectEntries.firstOrNull()
+    }
+
+    suspend fun <T : InsightEntity> getObjectRawByName(clazz: Class<T>, name: String): InsightObject? {
+        val objectName = mapping.get(clazz) ?: ""
+        return httpClient().get<InsightObjectEntries> {
+            url("$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&iql=objectType=$objectName and Name=\"$name\"&includeTypeAttributes=true")
+            header("Authorization", "Bearer $authToken")
+        }.objectEntries.firstOrNull()
+    }
+
+    suspend fun <T : InsightEntity> getObjects(clazz: Class<T>): List<T> {
+        val objects = getObjectsRaw(clazz)
+        return objects.map {
+            parseInsightObjectToClass(clazz, it)
+        }
+    }
+
+    suspend fun <T : InsightEntity> getObject(clazz: Class<T>, id: Int): T? {
+        val obj = getObjectRaw(clazz, id)
+        return obj?.let { parseInsightObjectToClass(clazz, it) }
+    }
+
+    suspend fun <T : InsightEntity> getObjectByName(clazz: Class<T>, name: String): T? {
+        val obj = getObjectRawByName(clazz, name)
+        return obj?.let { parseInsightObjectToClass(clazz, it) }
+    }
+
+    private suspend fun resolveInsightReference(objType: String, id: Int): InsightObject? {
         val objects = httpClient().get<InsightObjectEntries> {
             url("$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&iql=objectType=$objType and objectId=$id&includeTypeAttributes=true")
             header("Authorization", "Bearer $authToken")
         }
-        return objects.objectEntries.first()
+        return objects.objectEntries.firstOrNull()
     }
 
-    suspend fun <T : InsightEntity> parseInsightObjectToClass(clazz:Class<T>, obj: InsightObject): T {
+    suspend fun <T : InsightEntity> parseInsightObjectToClass(clazz: Class<T>, obj: InsightObject): T {
         val fieldsMap = clazz.declaredFields.map {
             it.name.capitalize() to it.type
         }.toMap()
@@ -48,12 +100,14 @@ object InsightCloudApi {
         val values = obj.attributes.filter { it.objectTypeAttribute?.referenceObjectType == null }.map {
             it.objectTypeAttribute?.name to it.objectAttributeValues.first().value
         }.toMap()
-        val references = obj.attributes.filter{ it.objectTypeAttribute?.referenceObjectType != null }.map {
+        val references = obj.attributes.filter { it.objectTypeAttribute?.referenceObjectType != null }.map {
             it.objectTypeAttribute?.referenceObjectType?.name to
-                    (fieldsMap.get(it.objectTypeAttribute?.referenceObjectType?.name?:"")?.let { Class.forName(it.name)}?.let { it1 ->
+                    (fieldsMap.get(
+                        it.objectTypeAttribute?.referenceObjectType?.name ?: ""
+                    )?.let { Class.forName(it.name) }?.let { it1 ->
                         InsightReference(
-                            objectType = it.objectTypeAttribute?.referenceObjectType?.name?:"",
-                            objectId = it.objectTypeAttribute?.referenceObjectTypeId?:0,
+                            objectType = it.objectTypeAttribute?.referenceObjectType?.name ?: "",
+                            objectId = it.objectTypeAttribute?.referenceObjectTypeId ?: 0,
                             clazzToParse = it1 as Class<T>
                         )
                     })
@@ -62,7 +116,12 @@ object InsightCloudApi {
         return parseObject(clazz, fieldsMap, allValues, references)
     }
 
-    private suspend fun <T: InsightEntity> parseObject(clazz: Class<T>, fields: Map<String, Class<out Any?>>, values: Map<String?, Any?>, references: Map<String?, InsightReference?>): T {
+    private suspend fun <T : InsightEntity> parseObject(
+        clazz: Class<T>,
+        fields: Map<String, Class<out Any?>>,
+        values: Map<String?, Any?>,
+        references: Map<String?, InsightReference?>
+    ): T {
         val kobj = Class.forName(clazz.name).kotlin
         val result = kobj.primaryConstructor
             ?.parameters
@@ -71,39 +130,100 @@ object InsightCloudApi {
                 val reference = references.get(parameter.name?.capitalize())
                 val definedClass = fields.get(parameter.name?.capitalize())
                 var result = value
-                if(value == null && reference != null){
+                if (value == null && reference != null) {
                     val referenceObject = references.get(parameter.name?.capitalize())
-                    val insightObject = getObject(referenceObject?.objectType?:"", referenceObject?.objectId?:0)
-                    if(InsightEntity::class.java in Class.forName(reference?.clazzToParse?.name).interfaces){
-                        val parsedObject = parseInsightObjectToClass(referenceObject?.clazzToParse as Class<T>, insightObject)
+                    val insightObject =
+                        resolveInsightReference(referenceObject?.objectType ?: "", referenceObject?.objectId ?: 0)
+                    if (InsightEntity::class.java == Class.forName(reference.clazzToParse.name).superclass) {
+                        val parsedObject = insightObject?.let {
+                            parseInsightObjectToClass(
+                                referenceObject?.clazzToParse as Class<T>,
+                                it
+                            )
+                        }
                         result = parsedObject
-                    } else if(reference.clazzToParse == String::class.java){
-                        result = insightObject.attributes.filter { it.objectTypeAttribute?.name == "Name" }.first().objectAttributeValues.first().value
-                    } else if(reference.clazzToParse == Int::class.java) {
-                        result = insightObject.id
+                    } else if (reference.clazzToParse == String::class.java) {
+                        result = insightObject?.attributes?.filter { it.objectTypeAttribute?.name == "Name" }?.first()
+                            ?.objectAttributeValues?.first()?.value
+                    } else if (reference.clazzToParse == Int::class.java) {
+                        result = insightObject?.id
                     }
                 }
                 map + (parameter to result)
             }?.let {
                 kobj.primaryConstructor?.callBy(it) as T
+            }?.apply {
+                this.id = values.get("Id") as Int
+                this.key = values.get("Key") as String
             } ?: throw RuntimeException("Object ${clazz.name} could not be loaded")
         return result
     }
 
-    suspend fun <T: InsightEntity> getObjects(clazz: Class<T>): List<T> =
-        throw NotImplementedError()
 
-    suspend fun <T: InsightEntity> getObject(clazz: Class<T>, id: Int): T =
-        throw NotImplementedError()
+    suspend fun <T : InsightEntity> createObject(obj: T): T {
+        reloadSchema()
+        val schema = objectSchemas.filter { it.name == mapping.get(obj::class.java) }.first()
+        val resolvedObj = resolveReferences(obj)
 
-    suspend fun <T> getFilteredObjects(clazz: Class<T>, iql: String): List<T> =
-        throw NotImplementedError()
+        val editItem = parseObjectToObjectTypeAttributes(resolvedObj, schema)
+        val json = httpClient().post<String> {
+            url("$BASE_URL/rest/insight/1.0/object/create")
+            header("Authorization", "Bearer $authToken")
+            contentType(ContentType.Application.Json)
+            body = editItem
+        }
+        val jsonObject = JsonParser().parse(json).asJsonObject
+        obj.id = jsonObject.get("id").asInt
+        obj.key = jsonObject.get("objectKey").asString
+        return obj
+    }
 
-    suspend fun <T> createObject(obj: T): T =
-        throw NotImplementedError()
+    private suspend fun <T : InsightEntity> resolveReferences(obj: T): T {
+        obj::class.memberProperties.map {
+            it as KProperty1<Any, *>
+        }.filter {
+            val newObj = it.get(obj)
+            Class.forName(newObj?.javaClass?.name).superclass == InsightEntity::class.java
+        }.onEach {
+            val item = it.get(obj) as T
+            //getObjectRaw(it.second::class.java)
+            if (item.id == -1 || item.key.isBlank()) {
+                // get entity by name, if not exists create
+                val resolvedObject = getObjectByName(item.javaClass, it.name) ?: createObject(item)
+                item.id = resolvedObject.id
+                item.key = resolvedObject.key
+            }
+        }
+        return obj
+    }
 
-    suspend fun <T> deleteObject(clazz: Class<T>, id: Int): Boolean =
-        throw NotImplementedError()
+    private fun <T : InsightEntity> parseObjectToObjectTypeAttributes(
+        obj: T,
+        schema: ObjectTypeSchema
+    ): ObjectEditItem {
+        val attributes: List<ObjectEditItemAttribute> = obj::class.java.declaredFields.map {
+            val name = it.name
+            var value =
+                (obj::class.memberProperties.filter { it.name == name }.firstOrNull() as KProperty1<Any, *>?)?.get(obj)
+            if (it.type.superclass == InsightEntity::class.java) {
+                // override with references --> key
+                value = (value as InsightEntity).key
+            }
+            schema.attributes.filter { it.name == name.capitalize() }.firstOrNull()?.let {
+                ObjectEditItemAttribute(it.id, listOf(ObjectEditItemAttributeValue(value)))
+            }
+        }.filterNotNull()
+        return ObjectEditItem(schema.id, attributes)
+    }
+
+    suspend fun deleteObject(id: Int): Boolean {
+        val json = httpClient().delete<String> {
+            url("$BASE_URL/rest/insight/1.0/object/$id")
+            header("Authorization", "Bearer $authToken")
+            contentType(ContentType.Application.Json)
+        }
+        return true
+    }
 
     suspend fun <T> updateObject(obj: T, id: Int): T =
         throw NotImplementedError()
