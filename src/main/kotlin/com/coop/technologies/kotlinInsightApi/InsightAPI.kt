@@ -1,9 +1,24 @@
 package com.coop.technologies.kotlinInsightApi
 
 import com.google.gson.JsonParser
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.apache.Apache
 import io.ktor.client.request.*
+import io.ktor.client.request.forms.FormPart
+import io.ktor.client.request.forms.MultiPartFormDataContent
+import io.ktor.client.request.forms.append
+import io.ktor.client.request.forms.formData
 import io.ktor.http.ContentType
+import io.ktor.http.Headers
+import io.ktor.http.HttpHeaders
+import io.ktor.http.content.PartData
 import io.ktor.http.contentType
+import kotlinx.io.core.buildPacket
+import kotlinx.io.core.writeFully
+import kotlinx.io.streams.asInput
+import java.io.ByteArrayInputStream
+import java.io.File
+import java.net.URLConnection
 import kotlin.reflect.KParameter
 import kotlin.reflect.KProperty1
 import kotlin.reflect.full.memberProperties
@@ -262,6 +277,54 @@ object InsightCloudApi {
             header("Authorization", "Bearer $authToken")
             contentType(ContentType.Application.Json)
         }
+    }
+
+    suspend fun <T: InsightEntity> getAttachments(obj: T): List<InsightAttachment> {
+        return httpClient().get<List<InsightAttachment>> {
+            url("$BASE_URL/rest/insight/1.0/attachments/object/${obj.id}")
+            header("Authorization", "Bearer $authToken")
+            contentType(ContentType.Application.Json)
+        }
+    }
+
+    suspend fun downloadAttachment(obj: InsightAttachment): ByteArray {
+        val url = obj.url
+        val result =  httpClient().get<ByteArray> {
+            url("$BASE_URL$url")
+            header("Authorization", "Bearer ${authToken}")
+        }
+        return result
+    }
+
+    suspend fun <T: InsightEntity> uploadAttachment(obj: T, filename: String, byteArray: ByteArray, comment: String = ""): List<InsightAttachment> {
+        val mimeType = URLConnection.guessContentTypeFromName(filename)
+        val result =  httpClient().post<List<InsightAttachment>> {
+            url("$BASE_URL/rest/insight/1.0/attachments/object/${obj.id}")
+            header("Authorization", "Bearer ${authToken}")
+            header("Connection", "keep-alive")
+            header("Cache-Control", "no-cache")
+            body = MultiPartFormDataContent(
+                formData {
+                    this.append(
+                        "file",
+                        byteArray,
+                        Headers.build {
+                            append(HttpHeaders.ContentType, mimeType)
+                            append(HttpHeaders.ContentDisposition,"filename=$filename")
+                        })
+                    this.append(FormPart("encodedComment", comment))
+                }
+            )
+        }
+        return result
+    }
+
+    suspend fun deleteAttachment(attachment: InsightAttachment): String {
+        val result =  httpClient().delete<String> {
+            url("$BASE_URL/rest/insight/1.0/attachments/${attachment.id}")
+            header("Authorization", "Bearer ${authToken}")
+        }
+        return result
     }
 
 

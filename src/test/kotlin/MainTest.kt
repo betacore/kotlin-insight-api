@@ -1,9 +1,10 @@
 import com.coop.technologies.kotlinInsightApi.*
 import com.typesafe.config.ConfigFactory
-import io.ktor.http.contentRangeHeaderValue
 import junit.framework.TestCase
 import kotlinx.coroutines.runBlocking
-import org.junit.Test
+import com.coop.technologies.kotlinInsightApi.InsightCloudApi
+import java.io.File
+import java.security.MessageDigest
 
 data class Company(
     override var name: String,
@@ -154,6 +155,28 @@ class MainTest : TestCase() {
             val country = InsightCloudApi.getObjectByName(Country::class.java, "Germany")!!
             val historyItems = InsightCloudApi.getHistory(country)
             assertTrue(historyItems.isNotEmpty())
+        }
+    }
+
+    fun testAttachments(){
+        runBlocking {
+            val country = InsightCloudApi.getObjectByName(Country::class.java, "Germany")!!
+            val uploadFile = File(MainTest::class.java.getResource("TestAttachment.pdf").file)
+            val newAttachment = InsightCloudApi.uploadAttachment(country, uploadFile.name, uploadFile.readBytes(), "MyComment")
+            val attachments = InsightCloudApi.getAttachments(country)
+            assertTrue(attachments.size == 1)
+            assertTrue(newAttachment.first().author == attachments.first()!!.author)
+            assertTrue(newAttachment.first().comment == attachments.first().comment)
+            assertTrue(newAttachment.first().filename == attachments.first().filename)
+            assertTrue(newAttachment.first().filesize == attachments.first().filesize)
+
+            val downloadContent = InsightCloudApi.downloadAttachment(attachments.first())
+            val md5Hash = MessageDigest.getInstance("MD5").digest(downloadContent).joinToString(""){"%02x".format(it)}
+            assertTrue(md5Hash == "3c2f34b03f483bee145a442a4574ca26")
+
+            val deleted = InsightCloudApi.deleteAttachment(newAttachment.first())
+            val attachmentsAfterDelete = InsightCloudApi.getAttachments(country)
+            assertTrue(attachmentsAfterDelete.isEmpty())
         }
     }
 }

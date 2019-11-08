@@ -1,5 +1,12 @@
 package com.coop.technologies.kotlinInsightApi
 
+import io.ktor.client.request.get
+import io.ktor.client.request.header
+import io.ktor.client.request.url
+import io.ktor.http.ContentType
+import io.ktor.http.contentType
+import java.io.File
+
 data class InsightName(
     val value: String
 )
@@ -105,6 +112,23 @@ data class InsightHistoryItem(
 
 data class Actor(
     val name: String
+)
+
+data class InsightAttachment(
+    val id: Int,
+    val author: String,
+    val mimeType: String,
+    val filename: String,
+    val filesize: String,
+    val created: String,
+    val comment: String,
+    val commentOutput: String,
+    val url: String
+)
+
+data class AttachmentUpload(
+    val file: File,
+    val encodedComment: String
 )
 
 //suspend fun InsightEntity.save() {
