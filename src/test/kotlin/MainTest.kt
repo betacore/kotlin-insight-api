@@ -1,5 +1,6 @@
 import com.coop.technologies.kotlinInsightApi.*
 import com.typesafe.config.ConfigFactory
+import io.ktor.http.contentRangeHeaderValue
 import junit.framework.TestCase
 import kotlinx.coroutines.runBlocking
 import org.junit.Test
@@ -114,6 +115,14 @@ class MainTest : TestCase() {
             assertTrue(companyAfterDelete == null)
             assertTrue(countryAfterDelete == null)
         }
+    }
 
+    fun testFilter(){
+        runBlocking {
+            val countries = InsightCloudApi.getObjectByIQL(Country::class.java, "\"ShortName\"=\"DE\"")
+            assertTrue(countries.size == 1)
+            assertTrue(countries.first().shortName == "DE")
+            assertTrue(countries.first().name == "Germany")
+        }
     }
 }

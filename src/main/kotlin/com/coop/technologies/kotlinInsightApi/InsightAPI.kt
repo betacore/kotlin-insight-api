@@ -67,6 +67,14 @@ object InsightCloudApi {
         }.objectEntries.firstOrNull()
     }
 
+    suspend fun <T: InsightEntity> getObjectsRawByIQL(clazz: Class<T>, iql: String): List<InsightObject> {
+        val objectName = mapping.get(clazz) ?: ""
+        return httpClient().get<InsightObjectEntries> {
+            url("$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&iql=objectType=$objectName and $iql&includeTypeAttributes=true")
+            header("Authorization", "Bearer $authToken")
+        }.objectEntries
+    }
+
     suspend fun <T : InsightEntity> getObjects(clazz: Class<T>): List<T> {
         val objects = getObjectsRaw(clazz)
         return objects.map {
@@ -82,6 +90,11 @@ object InsightCloudApi {
     suspend fun <T : InsightEntity> getObjectByName(clazz: Class<T>, name: String): T? {
         val obj = getObjectRawByName(clazz, name)
         return obj?.let { parseInsightObjectToClass(clazz, it) }
+    }
+
+    suspend fun <T : InsightEntity> getObjectByIQL(clazz: Class<T>, iql: String): List<T> {
+        val objs = getObjectsRawByIQL(clazz, iql)
+        return objs.map { parseInsightObjectToClass(clazz, it) }
     }
 
     private suspend fun resolveInsightReference(objType: String, id: Int): InsightObject? {
