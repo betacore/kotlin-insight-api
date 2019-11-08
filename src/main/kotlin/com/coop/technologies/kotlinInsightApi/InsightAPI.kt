@@ -256,5 +256,13 @@ object InsightCloudApi {
         return obj
     }
 
+    suspend fun <T: InsightEntity> getHistory(obj: T): List<InsightHistoryItem> {
+        return httpClient().get<List<InsightHistoryItem>> {
+            url("$BASE_URL/rest/insight/1.0/object/${obj.id}/history")
+            header("Authorization", "Bearer $authToken")
+            contentType(ContentType.Application.Json)
+        }
+    }
+
 
 }

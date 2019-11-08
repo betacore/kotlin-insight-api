@@ -148,4 +148,12 @@ class MainTest : TestCase() {
             assertTrue(countryAfterReUpdate.shortName == "DE")
         }
     }
+
+    fun testHistory(){
+        runBlocking {
+            val country = InsightCloudApi.getObjectByName(Country::class.java, "Germany")!!
+            val historyItems = InsightCloudApi.getHistory(country)
+            assertTrue(historyItems.isNotEmpty())
+        }
+    }
 }

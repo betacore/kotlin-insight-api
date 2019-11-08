@@ -92,6 +92,21 @@ data class InsightAttributeEntry (
     val value : Any
 )
 
+data class InsightHistoryItem(
+    val id: Int,
+    val affectedAttribute: String,
+    val newValue: String,
+    val actor: Actor,
+    val type: Int,
+    val created: String,
+    val updated: String,
+    val objectId: Int
+)
+
+data class Actor(
+    val name: String
+)
+
 //suspend fun InsightEntity.save() {
 //    InsightCloudApi.updateObject(this, this.id)
 //}
