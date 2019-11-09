@@ -1,10 +1,5 @@
 package com.coop.technologies.kotlinInsightApi
 
-import io.ktor.client.request.get
-import io.ktor.client.request.header
-import io.ktor.client.request.url
-import io.ktor.http.ContentType
-import io.ktor.http.contentType
 import java.io.File
 
 data class InsightName(
@@ -19,6 +14,58 @@ abstract class InsightEntity {
     var id: Int = -1
     var key: String = ""
     abstract var name: String
+
+    suspend fun save() {
+        if (id == -1) {
+            InsightCloudApi.createObject(this)
+        } else {
+            InsightCloudApi.updateObject(this)
+        }
+    }
+
+    suspend fun delete(): Boolean {
+        if (id == -1) {
+            return false
+        }
+        InsightCloudApi.deleteObject(id)
+        return true
+    }
+
+    suspend fun getHistory(): List<InsightHistoryItem> {
+        if(id == -1){
+            return emptyList()
+        }
+        return InsightCloudApi.getHistory(this)
+    }
+
+    suspend fun getAttachments(): List<InsightAttachment> {
+        if(id == -1){
+            return emptyList()
+        }
+        return InsightCloudApi.getAttachments(this)
+    }
+
+    suspend fun addAttachment(filename: String, byteArray: ByteArray, comment: String = ""): InsightAttachment {
+        return InsightCloudApi.uploadAttachment(this, filename, byteArray, comment).first()
+    }
+}
+
+object InsightFactory {
+    suspend inline fun <reified T: InsightEntity> findAll(): List<T> {
+        return InsightCloudApi.getObjects(T::class.java)
+    }
+
+    suspend inline fun <reified T: InsightEntity> findById(id: Int): T? {
+        return InsightCloudApi.getObject(T::class.java, id)
+    }
+
+    suspend inline fun <reified T: InsightEntity> findByName(name: String): T? {
+        return InsightCloudApi.getObjectByName(T::class.java, name)
+    }
+
+    suspend inline fun <reified T: InsightEntity> findByIQL(iql: String): List<T> {
+        return InsightCloudApi.getObjectByIQL(T::class.java, iql)
+    }
 }
 
 data class ObjectTypeSchema(
@@ -124,7 +171,19 @@ data class InsightAttachment(
     val comment: String,
     val commentOutput: String,
     val url: String
-)
+) {
+    suspend fun getBytes(): ByteArray {
+        return InsightCloudApi.downloadAttachment(this)
+    }
+
+    suspend fun delete(): Boolean {
+        if(id <= 0){
+            return false
+        }
+        InsightCloudApi.deleteAttachment(this)
+        return true
+    }
+}
 
 data class AttachmentUpload(
     val file: File,

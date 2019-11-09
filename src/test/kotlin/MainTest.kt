@@ -42,7 +42,7 @@ class MainTest : TestCase() {
 
     fun testObjectListWithFlatReference() {
         val companies = runBlocking {
-            InsightCloudApi.getObjects(Company::class.java)
+            InsightFactory.findAll<Company>()
         }
         assertTrue(companies.size == 1)
         val company = companies.first()
@@ -53,7 +53,7 @@ class MainTest : TestCase() {
 
     fun testObjectListWithResolvedReference() {
         val companies = runBlocking {
-            InsightCloudApi.getObjects(Company2::class.java)
+            InsightFactory.findAll<Company2>()
         }
         assertTrue(companies.size == 1)
         val company = companies.first()
@@ -65,7 +65,7 @@ class MainTest : TestCase() {
 
     fun testObjectById() {
         val company = runBlocking {
-            InsightCloudApi.getObject(Company::class.java, 1)!!
+            InsightFactory.findById<Company>(1)!!
         }
         assertTrue(company.id == 1)
         assertTrue(company.name == "Test Gmbh")
@@ -83,36 +83,36 @@ class MainTest : TestCase() {
     fun testCreateAndDelete() {
         runBlocking {
             // Check England does not exist
-            val countryBeforeCreate = InsightCloudApi.getObjectByName(Country::class.java, "England")
-            val companyBeforeCreate = InsightCloudApi.getObjectByName(Company2::class.java, "MyTestCompany Gmbh")
+            val countryBeforeCreate = InsightFactory.findByName<Country>("England")
+            val companyBeforeCreate = InsightFactory.findByName<Company2>("MyTestCompany Gmbh")
             assertTrue(countryBeforeCreate == null)
             assertTrue(companyBeforeCreate == null)
 
             // Create and check direct result
             val country = Country("England", "GB")
             val company = Company2("MyTestCompany Gmbh", country)
-            val createdCompany = InsightCloudApi.createObject(company)
-            assertTrue(createdCompany.id > 0)
-            assertTrue(createdCompany.key.isNotBlank())
-            assertTrue(createdCompany.country.id > 0)
-            assertTrue(createdCompany.country.key.isNotBlank())
+            company.save()
+            assertTrue(company.id > 0)
+            assertTrue(company.key.isNotBlank())
+            assertTrue(company.country.id > 0)
+            assertTrue(company.country.key.isNotBlank())
 
             // Check England does exists
-            val countryAfterCreate = InsightCloudApi.getObjectByName(Country::class.java, "England")
-            val companyAfterCreate = InsightCloudApi.getObjectByName(Company2::class.java, "MyTestCompany Gmbh")
-            assertTrue(countryAfterCreate!!.id == createdCompany.country.id)
-            assertTrue(countryAfterCreate.key == createdCompany.country.key)
-            assertTrue(countryAfterCreate.name == createdCompany.country.name)
-            assertTrue(countryAfterCreate.shortName == createdCompany.country.shortName)
-            assertTrue(companyAfterCreate!!.id == createdCompany.id)
-            assertTrue(companyAfterCreate.key == createdCompany.key)
-            assertTrue(companyAfterCreate.name == createdCompany.name)
+            val countryAfterCreate = InsightFactory.findByName<Country>("England")
+            val companyAfterCreate = InsightFactory.findByName<Company2>("MyTestCompany Gmbh")
+            assertTrue(countryAfterCreate!!.id == company.country.id)
+            assertTrue(countryAfterCreate.key == company.country.key)
+            assertTrue(countryAfterCreate.name == company.country.name)
+            assertTrue(countryAfterCreate.shortName == company.country.shortName)
+            assertTrue(companyAfterCreate!!.id == company.id)
+            assertTrue(companyAfterCreate.key == company.key)
+            assertTrue(companyAfterCreate.name == company.name)
 
             // Check Delete
-            InsightCloudApi.deleteObject(createdCompany.id)
-            InsightCloudApi.deleteObject(createdCompany.country.id)
-            val companyAfterDelete = InsightCloudApi.getObject(Company2::class.java, createdCompany.id)
-            val countryAfterDelete = InsightCloudApi.getObject(Country::class.java, createdCompany.country.id)
+            company.country.delete()
+            company.delete()
+            val companyAfterDelete = InsightFactory.findById<Company2>(company.id)
+            val countryAfterDelete = InsightFactory.findById<Country>(company.country.id)
             assertTrue(companyAfterDelete == null)
             assertTrue(countryAfterDelete == null)
         }
@@ -120,7 +120,7 @@ class MainTest : TestCase() {
 
     fun testFilter(){
         runBlocking {
-            val countries = InsightCloudApi.getObjectByIQL(Country::class.java, "\"ShortName\"=\"DE\"")
+            val countries = InsightFactory.findByIQL<Country>("\"ShortName\"=\"DE\"")
             assertTrue(countries.size == 1)
             assertTrue(countries.first().shortName == "DE")
             assertTrue(countries.first().name == "Germany")
@@ -129,22 +129,22 @@ class MainTest : TestCase() {
 
     fun testUpdate(){
         runBlocking {
-            val country = InsightCloudApi.getObjectByName(Country::class.java, "Germany")
+            val country = InsightFactory.findByName<Country>("Germany")
             assertTrue(country!!.name == "Germany")
             assertTrue(country.shortName == "DE")
             country.shortName = "ED"
 
-            val newCountry = InsightCloudApi.updateObject(country)
-            assertTrue(newCountry!!.name == "Germany")
-            assertTrue(newCountry.shortName == "ED")
+            country.save()
+            assertTrue(country!!.name == "Germany")
+            assertTrue(country.shortName == "ED")
 
-            val countryAfterUpdate = InsightCloudApi.getObjectByName(Country::class.java, "Germany")
+            val countryAfterUpdate = InsightFactory.findByName<Country>("Germany")
             assertTrue(countryAfterUpdate!!.name == "Germany")
             assertTrue(countryAfterUpdate.shortName == "ED")
             country.shortName = "DE"
-            InsightCloudApi.updateObject(country)
+            country.save()
 
-            val countryAfterReUpdate = InsightCloudApi.getObjectByName(Country::class.java, "Germany")
+            val countryAfterReUpdate = InsightFactory.findByName<Country>("Germany")
             assertTrue(countryAfterReUpdate!!.name == "Germany")
             assertTrue(countryAfterReUpdate.shortName == "DE")
         }
@@ -152,30 +152,30 @@ class MainTest : TestCase() {
 
     fun testHistory(){
         runBlocking {
-            val country = InsightCloudApi.getObjectByName(Country::class.java, "Germany")!!
-            val historyItems = InsightCloudApi.getHistory(country)
+            val country = InsightFactory.findByName<Country>("Germany")!!
+            val historyItems = country.getHistory()
             assertTrue(historyItems.isNotEmpty())
         }
     }
 
     fun testAttachments(){
         runBlocking {
-            val country = InsightCloudApi.getObjectByName(Country::class.java, "Germany")!!
+            val country = InsightFactory.findByName<Country>("Germany")!!
             val uploadFile = File(MainTest::class.java.getResource("TestAttachment.pdf").file)
-            val newAttachment = InsightCloudApi.uploadAttachment(country, uploadFile.name, uploadFile.readBytes(), "MyComment")
-            val attachments = InsightCloudApi.getAttachments(country)
+            val newAttachment = country.addAttachment(uploadFile.name, uploadFile.readBytes(), "MyComment")
+            val attachments = country.getAttachments()
             assertTrue(attachments.size == 1)
-            assertTrue(newAttachment.first().author == attachments.first()!!.author)
-            assertTrue(newAttachment.first().comment == attachments.first().comment)
-            assertTrue(newAttachment.first().filename == attachments.first().filename)
-            assertTrue(newAttachment.first().filesize == attachments.first().filesize)
+            assertTrue(newAttachment.author == attachments.first()!!.author)
+            assertTrue(newAttachment.comment == attachments.first().comment)
+            assertTrue(newAttachment.filename == attachments.first().filename)
+            assertTrue(newAttachment.filesize == attachments.first().filesize)
 
-            val downloadContent = InsightCloudApi.downloadAttachment(attachments.first())
+            val downloadContent = attachments.first().getBytes()
             val md5Hash = MessageDigest.getInstance("MD5").digest(downloadContent).joinToString(""){"%02x".format(it)}
             assertTrue(md5Hash == "3c2f34b03f483bee145a442a4574ca26")
 
-            val deleted = InsightCloudApi.deleteAttachment(newAttachment.first())
-            val attachmentsAfterDelete = InsightCloudApi.getAttachments(country)
+            val deleted = newAttachment.delete()
+            val attachmentsAfterDelete = country.getAttachments()
             assertTrue(attachmentsAfterDelete.isEmpty())
         }
     }

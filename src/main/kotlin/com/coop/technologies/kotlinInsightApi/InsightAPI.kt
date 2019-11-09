@@ -1,23 +1,14 @@
 package com.coop.technologies.kotlinInsightApi
 
 import com.google.gson.JsonParser
-import io.ktor.client.HttpClient
-import io.ktor.client.engine.apache.Apache
 import io.ktor.client.request.*
 import io.ktor.client.request.forms.FormPart
 import io.ktor.client.request.forms.MultiPartFormDataContent
-import io.ktor.client.request.forms.append
 import io.ktor.client.request.forms.formData
 import io.ktor.http.ContentType
 import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
-import io.ktor.http.content.PartData
 import io.ktor.http.contentType
-import kotlinx.io.core.buildPacket
-import kotlinx.io.core.writeFully
-import kotlinx.io.streams.asInput
-import java.io.ByteArrayInputStream
-import java.io.File
 import java.net.URLConnection
 import kotlin.reflect.KParameter
 import kotlin.reflect.KProperty1
