@@ -11,6 +11,25 @@ Hopefully it helps you having fun with developing kotlin and using Jira Insight.
 
 *__My the force be with you__*
 
+## Import this gradle project as git-source-dependency
+
+__settings.gradle.kts__
+```kotlin
+    sourceControl {
+        gitRepository(uri("ssh://git@bitbucket.org/coop-technologies/kotlin-insight-api.git")){
+            producesModule("com.coop-technologies:kotlin-insight-api")
+        }
+    }
+```
+__build.gradle.kts__
+```kotlin
+    dependencies {
+        ...
+        // verion = "1.0" stands for the git-tag inside the master branch
+        implementation(group = "com.coop-technologies", name = "kotlin-insight-api", version = "1.0")
+    }
+```
+
 ## Description
 
 This *kotlin-insight-api* is a wrapper around the __Jira Insight Plugin__ Rest interface which manages assets.
