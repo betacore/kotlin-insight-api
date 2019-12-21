@@ -4,7 +4,7 @@ result=0
 echo "### Checking Jira is running"
 while [ $result -eq 0 ]
 do
-  response=$(curl http://localhost:8080/status 2> /dev/null)
+  response=$(curl http://localhost:9090/status 2> /dev/null)
   if [ "$response" == '{"state":"RUNNING"}' ]
   then
     result=1
