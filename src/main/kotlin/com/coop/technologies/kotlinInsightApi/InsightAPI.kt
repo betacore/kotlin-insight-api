@@ -1,6 +1,7 @@
 package com.coop.technologies.kotlinInsightApi
 
 import com.google.gson.JsonParser
+import io.ktor.client.HttpClient
 import io.ktor.client.request.*
 import io.ktor.client.request.forms.FormPart
 import io.ktor.client.request.forms.MultiPartFormDataContent
@@ -9,6 +10,7 @@ import io.ktor.http.ContentType
 import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
 import io.ktor.http.contentType
+import kotlinx.coroutines.runBlocking
 import java.net.URLConnection
 import kotlin.reflect.KParameter
 import kotlin.reflect.KProperty1
@@ -17,16 +19,20 @@ import kotlin.reflect.full.primaryConstructor
 
 object InsightCloudApi {
 
-    private val BASE_URL = "https://insight-api.riada.io"
+    private var BASE_URL = "https://insight-api.riada.io"
     private var schemaId: Int = -1
-    private var authToken: String = ""
     val mapping: MutableMap<Class<out InsightEntity>, String> = mutableMapOf()
     var objectSchemas: List<ObjectTypeSchema> = emptyList()
+    var httpClient: HttpClient = httpClient("", "")
 
     // One Time Initialization
-    fun init(schemaId: Int, authToken: String) {
+    fun init(schemaId: Int, url: String, username: String, password: String) {
+        this.BASE_URL = url
         this.schemaId = schemaId
-        this.authToken = authToken
+        this.httpClient = httpClient(username, password)
+        runBlocking {
+            reloadSchema()
+        }
     }
 
     fun registerClass(clazz: Class<out InsightEntity>, objectName: String) {
@@ -34,14 +40,12 @@ object InsightCloudApi {
     }
 
     suspend fun reloadSchema() {
-        val schemas = httpClient().get<List<ObjectTypeSchema>> {
-            url("$BASE_URL/rest/insight/1.0/objectschema/1/objecttypes/flat")
-            header("Authorization", "Bearer $authToken")
+        val schemas = httpClient.get<List<ObjectTypeSchema>> {
+            url("$BASE_URL/rest/insight/1.0/objectschema/${schemaId}/objecttypes/flat")
         }
         val fullSchemas = schemas.map {
-            val attributes = httpClient().get<List<ObjectTypeSchemaAttribute>> {
+            val attributes = httpClient.get<List<ObjectTypeSchemaAttribute>> {
                 url("$BASE_URL/rest/insight/1.0/objecttype/${it.id}/attributes")
-                header("Authorization", "Bearer $authToken")
             }
             it.attributes = attributes
             it
@@ -51,33 +55,29 @@ object InsightCloudApi {
 
     suspend fun <T : InsightEntity> getObjectsRaw(clazz: Class<T>): List<InsightObject> {
         val objectName = mapping.get(clazz) ?: ""
-        return httpClient().get<InsightObjectEntries> {
+        return httpClient.get<InsightObjectEntries> {
             url("$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&iql=objectType=$objectName&includeTypeAttributes=true")
-            header("Authorization", "Bearer $authToken")
         }.objectEntries
     }
 
     suspend fun <T : InsightEntity> getObjectRaw(clazz: Class<T>, id: Int): InsightObject? {
         val objectName = mapping.get(clazz) ?: ""
-        return httpClient().get<InsightObjectEntries> {
+        return httpClient.get<InsightObjectEntries> {
             url("$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&iql=objectType=$objectName and objectId=$id&includeTypeAttributes=true")
-            header("Authorization", "Bearer $authToken")
         }.objectEntries.firstOrNull()
     }
 
     suspend fun <T : InsightEntity> getObjectRawByName(clazz: Class<T>, name: String): InsightObject? {
         val objectName = mapping.get(clazz) ?: ""
-        return httpClient().get<InsightObjectEntries> {
+        return httpClient.get<InsightObjectEntries> {
             url("$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&iql=objectType=$objectName and Name=\"$name\"&includeTypeAttributes=true")
-            header("Authorization", "Bearer $authToken")
         }.objectEntries.firstOrNull()
     }
 
     suspend fun <T: InsightEntity> getObjectsRawByIQL(clazz: Class<T>, iql: String): List<InsightObject> {
         val objectName = mapping.get(clazz) ?: ""
-        return httpClient().get<InsightObjectEntries> {
+        return httpClient.get<InsightObjectEntries> {
             url("$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&iql=objectType=$objectName and $iql&includeTypeAttributes=true")
-            header("Authorization", "Bearer $authToken")
         }.objectEntries
     }
 
@@ -104,9 +104,8 @@ object InsightCloudApi {
     }
 
     private suspend fun resolveInsightReference(objType: String, id: Int): InsightObject? {
-        val objects = httpClient().get<InsightObjectEntries> {
+        val objects = httpClient.get<InsightObjectEntries> {
             url("$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&iql=objectType=$objType and objectId=$id&includeTypeAttributes=true")
-            header("Authorization", "Bearer $authToken")
         }
         return objects.objectEntries.firstOrNull()
     }
@@ -185,9 +184,8 @@ object InsightCloudApi {
         val resolvedObj = resolveReferences(obj)
 
         val editItem = parseObjectToObjectTypeAttributes(resolvedObj, schema)
-        val json = httpClient().post<String> {
+        val json = httpClient.post<String> {
             url("$BASE_URL/rest/insight/1.0/object/create")
-            header("Authorization", "Bearer $authToken")
             contentType(ContentType.Application.Json)
             body = editItem
         }
@@ -236,9 +234,8 @@ object InsightCloudApi {
     }
 
     suspend fun deleteObject(id: Int): Boolean {
-        val json = httpClient().delete<String> {
+        val json = httpClient.delete<String> {
             url("$BASE_URL/rest/insight/1.0/object/$id")
-            header("Authorization", "Bearer $authToken")
             contentType(ContentType.Application.Json)
         }
         return true
@@ -250,9 +247,8 @@ object InsightCloudApi {
         val resolvedObj = resolveReferences(obj)
 
         val editItem = parseObjectToObjectTypeAttributes(resolvedObj, schema)
-        val json = httpClient().put<String> {
+        val json = httpClient.put<String> {
             url("$BASE_URL/rest/insight/1.0/object/${obj.id}")
-            header("Authorization", "Bearer $authToken")
             contentType(ContentType.Application.Json)
             body = editItem
         }
@@ -263,35 +259,31 @@ object InsightCloudApi {
     }
 
     suspend fun <T: InsightEntity> getHistory(obj: T): List<InsightHistoryItem> {
-        return httpClient().get<List<InsightHistoryItem>> {
+        return httpClient.get<List<InsightHistoryItem>> {
             url("$BASE_URL/rest/insight/1.0/object/${obj.id}/history")
-            header("Authorization", "Bearer $authToken")
             contentType(ContentType.Application.Json)
         }
     }
 
     suspend fun <T: InsightEntity> getAttachments(obj: T): List<InsightAttachment> {
-        return httpClient().get<List<InsightAttachment>> {
+        return httpClient.get<List<InsightAttachment>> {
             url("$BASE_URL/rest/insight/1.0/attachments/object/${obj.id}")
-            header("Authorization", "Bearer $authToken")
             contentType(ContentType.Application.Json)
         }
     }
 
     suspend fun downloadAttachment(obj: InsightAttachment): ByteArray {
         val url = obj.url
-        val result =  httpClient().get<ByteArray> {
-            url("$BASE_URL$url")
-            header("Authorization", "Bearer ${authToken}")
+        val result =  httpClient.get<ByteArray> {
+            url(url)
         }
         return result
     }
 
     suspend fun <T: InsightEntity> uploadAttachment(obj: T, filename: String, byteArray: ByteArray, comment: String = ""): List<InsightAttachment> {
         val mimeType = URLConnection.guessContentTypeFromName(filename)
-        val result =  httpClient().post<List<InsightAttachment>> {
+        val result =  httpClient.post<List<InsightAttachment>> {
             url("$BASE_URL/rest/insight/1.0/attachments/object/${obj.id}")
-            header("Authorization", "Bearer ${authToken}")
             header("Connection", "keep-alive")
             header("Cache-Control", "no-cache")
             body = MultiPartFormDataContent(
@@ -311,9 +303,8 @@ object InsightCloudApi {
     }
 
     suspend fun deleteAttachment(attachment: InsightAttachment): String {
-        val result =  httpClient().delete<String> {
+        val result =  httpClient.delete<String> {
             url("$BASE_URL/rest/insight/1.0/attachments/${attachment.id}")
-            header("Authorization", "Bearer ${authToken}")
         }
         return result
     }

@@ -4,9 +4,20 @@ steps:
       caches:
         - gradle
       script:
-        - ./gradlew test --info
+        - ./scripts/test.sh
+      services:
+        - jira
+
 
 pipelines:
 
   default:
     - step: *build
+
+definitions:
+  services:
+    jira:
+      image:
+        name: kadega/jira-insight:2
+        username: $DOCKER_USERNAME
+        password: $DOCKER_TOKEN

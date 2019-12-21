@@ -31,9 +31,9 @@ class MainTest : TestCase() {
     override fun setUp() {
         super.setUp()
         println("#### Starting setUp")
-        val config = ConfigFactory.parseResources("test.conf").resolve()
-        val authToken = config.getString("conf.authToken")
-        InsightCloudApi.init(1, authToken)
+        //val config = ConfigFactory.parseResources("test.conf").resolve()
+        //val authToken = config.getString("conf.authToken")
+        InsightCloudApi.init(1, "http://localhost:8080", "admin", "admin")
         InsightCloudApi.registerClass(Company::class.java, "Company")
         InsightCloudApi.registerClass(Company2::class.java, "Company")
         InsightCloudApi.registerClass(Country::class.java, "Country")
@@ -47,7 +47,7 @@ class MainTest : TestCase() {
         assertTrue(companies.size == 1)
         val company = companies.first()
         assertTrue(company.id == 1)
-        assertTrue(company.name == "Test Gmbh")
+        assertTrue(company.name == "Test GmbH")
         assertTrue(company.country == "Germany")
     }
 
@@ -58,7 +58,7 @@ class MainTest : TestCase() {
         assertTrue(companies.size == 1)
         val company = companies.first()
         assertTrue(company.id == 1)
-        assertTrue(company.name == "Test Gmbh")
+        assertTrue(company.name == "Test GmbH")
         assertTrue(company.country.name == "Germany")
         assertTrue(company.country.shortName == "DE")
     }
@@ -68,7 +68,7 @@ class MainTest : TestCase() {
             InsightFactory.findById<Company>(1)!!
         }
         assertTrue(company.id == 1)
-        assertTrue(company.name == "Test Gmbh")
+        assertTrue(company.name == "Test GmbH")
         assertTrue(company.country == "Germany")
     }
 
@@ -84,13 +84,13 @@ class MainTest : TestCase() {
         runBlocking {
             // Check England does not exist
             val countryBeforeCreate = InsightFactory.findByName<Country>("England")
-            val companyBeforeCreate = InsightFactory.findByName<Company2>("MyTestCompany Gmbh")
+            val companyBeforeCreate = InsightFactory.findByName<Company2>("MyTestCompany GmbH")
             assertTrue(countryBeforeCreate == null)
             assertTrue(companyBeforeCreate == null)
 
             // Create and check direct result
             val country = Country("England", "GB")
-            val company = Company2("MyTestCompany Gmbh", country)
+            val company = Company2("MyTestCompany GmbH", country)
             company.save()
             assertTrue(company.id > 0)
             assertTrue(company.key.isNotBlank())
@@ -99,7 +99,7 @@ class MainTest : TestCase() {
 
             // Check England does exists
             val countryAfterCreate = InsightFactory.findByName<Country>("England")
-            val companyAfterCreate = InsightFactory.findByName<Company2>("MyTestCompany Gmbh")
+            val companyAfterCreate = InsightFactory.findByName<Company2>("MyTestCompany GmbH")
             assertTrue(countryAfterCreate!!.id == company.country.id)
             assertTrue(countryAfterCreate.key == company.country.key)
             assertTrue(countryAfterCreate.name == company.country.name)
