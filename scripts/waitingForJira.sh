@@ -1,7 +1,6 @@
 #!/bin/bash
 index=1
 result=0
-echo "### Starting test script"
 echo "### Checking Jira is running"
 while [ $result -eq 0 ]
 do
@@ -20,7 +19,3 @@ do
   index=$((index+1))
 done
 echo "### JIRA IS UP"
-cd ..
-echo "### Starting Tests"
-./gradlew test --info
-echo "### Finished"

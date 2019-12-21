@@ -4,7 +4,8 @@ steps:
       caches:
         - gradle
       script:
-        - ./scripts/test.sh
+        - ./scripts/waitingForJira.sh
+        - ./gradlew test --info
       services:
         - jira
 
