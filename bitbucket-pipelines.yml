@@ -18,7 +18,7 @@ pipelines:
 definitions:
   services:
     jira:
-      memory: 2048
+      memory: 3072
       image:
         name: kadega/jira-insight:2
         username: $DOCKER_USERNAME
