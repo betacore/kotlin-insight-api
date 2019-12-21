@@ -1,6 +1,5 @@
 steps:
   - build: &build
-      image: openjdk:8-jdk-alpine
       name: build
       caches:
         - gradle
@@ -8,17 +7,18 @@ steps:
         - ./scripts/waitingForJira.sh
         - ./gradlew test --info
       services:
-        - docker
         - jira
 
 
 pipelines:
+
   default:
     - step: *build
 
 definitions:
   services:
     jira:
+      memory: 2048
       image:
         name: kadega/jira-insight:2
         username: $DOCKER_USERNAME
