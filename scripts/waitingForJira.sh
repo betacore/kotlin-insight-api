@@ -9,7 +9,7 @@ do
   then
     result=1
   fi
-  if [ $index -ge 15 ]
+  if [ $index -ge 30 ]
   then
     echo "!!! JIRA NOT RUNNING AFTER 15 SECONDS"
     exit 1
