@@ -16,7 +16,7 @@ Hopefully it helps you having fun with developing kotlin and using Jira Insight.
 __settings.gradle.kts__
 ```kotlin
     sourceControl {
-        gitRepository(uri("ssh://git@bitbucket.org/coop-technologies/kotlin-insight-api.git")){
+        gitRepository(uri("https://github.com/betacore/kotlin-insight-api.git")){
             producesModule("com.coop-technologies:kotlin-insight-api")
         }
     }
