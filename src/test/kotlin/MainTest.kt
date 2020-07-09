@@ -3,8 +3,10 @@ import com.typesafe.config.ConfigFactory
 import junit.framework.TestCase
 import kotlinx.coroutines.runBlocking
 import com.coop.technologies.kotlinInsightApi.InsightCloudApi
+import sun.java2d.pipe.SpanShapeRenderer
 import java.io.File
 import java.security.MessageDigest
+import javax.swing.text.html.parser.Entity
 
 data class Company(
     override var name: String,
@@ -26,6 +28,27 @@ data class SimpleCountry(
     val shortName: String
 ) : InsightEntity()
 
+data class TestWithListsId(
+    override var name: String,
+    val itemList: List<Int>
+) : InsightEntity()
+
+data class TestWithListsString(
+    override var name: String,
+    val itemList: List<String>
+) : InsightEntity()
+
+data class TestWithListsObject(
+    override var name: String,
+    val itemList: List<SimpleObject>
+) : InsightEntity()
+
+data class SimpleObject(
+    override var name: String,
+    val firstname: String,
+    val lastname: String
+) : InsightEntity()
+
 class MainTest : TestCase() {
 
     override fun setUp() {
@@ -38,6 +61,10 @@ class MainTest : TestCase() {
         InsightCloudApi.registerClass(Company2::class.java, "Company")
         InsightCloudApi.registerClass(Country::class.java, "Country")
         InsightCloudApi.registerClass(SimpleCountry::class.java, "Country")
+        InsightCloudApi.registerClass(TestWithListsId::class.java, "TestWithLists")
+        InsightCloudApi.registerClass(TestWithListsString::class.java, "TestWithLists")
+        InsightCloudApi.registerClass(TestWithListsObject::class.java, "TestWithLists")
+        InsightCloudApi.registerClass(SimpleObject::class.java, "SimpleObject")
     }
 
     fun testObjectListWithFlatReference() {
@@ -70,6 +97,17 @@ class MainTest : TestCase() {
         assertTrue(company.id == 1)
         assertTrue(company.name == "Test GmbH")
         assertTrue(company.country == "Germany")
+    }
+
+    fun testObjectWithListAttributes() {
+        val withIds = runBlocking { InsightFactory.findAll<TestWithListsId>() }.first()
+        val withStrings = runBlocking { InsightFactory.findAll<TestWithListsString>() }.first()
+        val withObject = runBlocking { InsightFactory.findAll<TestWithListsObject>() }.first()
+
+        assertTrue(withIds.itemList == listOf(35,36,37))
+        assertTrue(withStrings.itemList == listOf("Object1", "Object2", "Object3"))
+        assertTrue(withObject.itemList.map { it.firstname } == listOf("F1", "F2", "F3"))
+        println("")
     }
 
     fun testSchemaLoad() {
