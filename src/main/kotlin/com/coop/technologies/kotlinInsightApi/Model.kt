@@ -171,6 +171,11 @@ data class Actor(
     val name: String
 )
 
+data class InsightAttachmentCreate(
+    val seconds: Long,
+    val nanos: Long
+)
+
 data class InsightAttachment(
     val id: Int,
     val author: String,

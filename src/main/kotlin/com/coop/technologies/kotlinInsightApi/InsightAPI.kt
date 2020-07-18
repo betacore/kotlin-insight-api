@@ -328,7 +328,7 @@ object InsightCloudApi {
     }
 
     suspend fun <T : InsightEntity> getAttachments(obj: T): List<InsightAttachment> {
-        return httpClient.get<List<InsightAttachment>> {
+        return httpClient.get {
             url("$BASE_URL/rest/insight/1.0/attachments/object/${obj.id}")
             contentType(ContentType.Application.Json)
         }
@@ -349,7 +349,7 @@ object InsightCloudApi {
         comment: String = ""
     ): List<InsightAttachment> {
         val mimeType = URLConnection.guessContentTypeFromName(filename)
-        val result = httpClient.post<List<InsightAttachment>> {
+        val result = httpClient.post<String> {
             url("$BASE_URL/rest/insight/1.0/attachments/object/${obj.id}")
             header("Connection", "keep-alive")
             header("Cache-Control", "no-cache")
@@ -366,7 +366,7 @@ object InsightCloudApi {
                 }
             )
         }
-        return result
+        return getAttachments(obj)
     }
 
     suspend fun deleteAttachment(attachment: InsightAttachment): String {

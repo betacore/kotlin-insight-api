@@ -35,7 +35,7 @@ __build.gradle.kts__
 This *kotlin-insight-api* is a wrapper around the __Jira Insight Plugin__ Rest interface which manages assets.
 It shall help to build easy communication between an kotlin app and the plugin data.
 
-You can find full examples [here](https://bitbucket.org/coop-technologies/kotlin-insight-api/src/master/src/test/kotlin/MainTest.kt).
+You can find full examples [here](https://github.com/betacore/kotlin-insight-api/blob/master/src/test/kotlin/MainTest.kt).
 
 
 ## Initialze the Connection (Singleton)

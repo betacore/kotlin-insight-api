@@ -1,12 +1,9 @@
 import com.coop.technologies.kotlinInsightApi.*
-import com.typesafe.config.ConfigFactory
 import junit.framework.TestCase
 import kotlinx.coroutines.runBlocking
 import com.coop.technologies.kotlinInsightApi.InsightCloudApi
-import sun.java2d.pipe.SpanShapeRenderer
 import java.io.File
 import java.security.MessageDigest
-import javax.swing.text.html.parser.Entity
 
 data class Company(
     override var name: String,
@@ -104,7 +101,7 @@ class MainTest : TestCase() {
         val withStrings = runBlocking { InsightFactory.findAll<TestWithListsString>() }.first()
         val withObject = runBlocking { InsightFactory.findAll<TestWithListsObject>() }.first()
 
-        assertTrue(withIds.itemList == listOf(35,36,37))
+        assertTrue(withIds.itemList == listOf(35, 36, 37))
         assertTrue(withStrings.itemList == listOf("Object1", "Object2", "Object3"))
         assertTrue(withObject.itemList.map { it.firstname } == listOf("F1", "F2", "F3"))
         println("")
@@ -156,7 +153,7 @@ class MainTest : TestCase() {
         }
     }
 
-    fun testFilter(){
+    fun testFilter() {
         runBlocking {
             val countries = InsightFactory.findByIQL<Country>("\"ShortName\"=\"DE\"")
             assertTrue(countries.size == 1)
@@ -165,7 +162,7 @@ class MainTest : TestCase() {
         }
     }
 
-    fun testUpdate(){
+    fun testUpdate() {
         runBlocking {
             val country = InsightFactory.findByName<Country>("Germany")
             assertTrue(country!!.name == "Germany")
@@ -188,7 +185,7 @@ class MainTest : TestCase() {
         }
     }
 
-    fun testHistory(){
+    fun testHistory() {
         runBlocking {
             val country = InsightFactory.findByName<Country>("Germany")!!
             val historyItems = country.getHistory()
@@ -196,7 +193,7 @@ class MainTest : TestCase() {
         }
     }
 
-    fun testAttachments(){
+    fun testAttachments() {
         runBlocking {
             val country = InsightFactory.findByName<Country>("Germany")!!
             val uploadFile = File(MainTest::class.java.getResource("TestAttachment.pdf").file)
@@ -209,7 +206,8 @@ class MainTest : TestCase() {
             assertTrue(newAttachment.filesize == attachments.first().filesize)
 
             val downloadContent = attachments.first().getBytes()
-            val md5Hash = MessageDigest.getInstance("MD5").digest(downloadContent).joinToString(""){"%02x".format(it)}
+            val md5Hash =
+                MessageDigest.getInstance("MD5").digest(downloadContent).joinToString("") { "%02x".format(it) }
             assertTrue(md5Hash == "3c2f34b03f483bee145a442a4574ca26")
 
             val deleted = newAttachment.delete()
