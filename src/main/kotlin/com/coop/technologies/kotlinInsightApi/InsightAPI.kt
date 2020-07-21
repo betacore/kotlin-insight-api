@@ -57,14 +57,14 @@ object InsightCloudApi {
     suspend fun <T : InsightEntity> getObjectsRaw(clazz: Class<T>): List<InsightObject> {
         val objectName = mapping.get(clazz) ?: ""
         return httpClient.get<InsightObjectEntries> {
-            url("$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&iql=objectType=$objectName&includeTypeAttributes=true")
+            url("$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&iql=objectType=\"$objectName\"&includeTypeAttributes=true")
         }.objectEntries
     }
 
     suspend fun <T : InsightEntity> getObjectRaw(clazz: Class<T>, id: Int): InsightObject? {
         val objectName = mapping.get(clazz) ?: ""
         return httpClient.get<InsightObjectEntries> {
-            url("$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&iql=objectType=$objectName and objectId=$id&includeTypeAttributes=true")
+            url("$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&iql=objectType=\"$objectName\" and objectId=$id&includeTypeAttributes=true")
         }.objectEntries.firstOrNull()
     }
 
@@ -74,7 +74,7 @@ object InsightCloudApi {
     ): InsightObject? {
         val objectName = mapping.get(clazz) ?: ""
         return httpClient.get<InsightObjectEntries> {
-            url("$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&iql=objectType=$objectName and Name=\"$name\"&includeTypeAttributes=true")
+            url("$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&iql=objectType=\"$objectName\" and Name=\"$name\"&includeTypeAttributes=true")
         }.objectEntries.firstOrNull()
     }
 
@@ -84,7 +84,7 @@ object InsightCloudApi {
     ): List<InsightObject> {
         val objectName = mapping.get(clazz) ?: ""
         return httpClient.get<InsightObjectEntries> {
-            url("$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&iql=objectType=$objectName and $iql&includeTypeAttributes=true")
+            url("$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&iql=objectType=\"$objectName\" and $iql&includeTypeAttributes=true")
         }.objectEntries
     }
 
@@ -110,9 +110,9 @@ object InsightCloudApi {
         return objs.map { parseInsightObjectToClass(clazz, it) }
     }
 
-    private suspend fun resolveInsightReference(objType: String, id: Int): InsightObject? {
+    private suspend fun resolveInsightReference(objectType: String, id: Int): InsightObject? {
         val objects = httpClient.get<InsightObjectEntries> {
-            url("$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&iql=objectType=$objType and objectId=$id&includeTypeAttributes=true")
+            url("$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&iql=objectType=\"$objectType\" and objectId=$id&includeTypeAttributes=true")
         }
         return objects.objectEntries.firstOrNull()
     }
