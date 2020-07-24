@@ -236,7 +236,7 @@ object InsightCloudApi {
                             }
                         }
                     }
-                    else -> TODO("Don't know what to do here")
+                    else -> null
                 }
                 (parameter to result)
             }?.toMap()
