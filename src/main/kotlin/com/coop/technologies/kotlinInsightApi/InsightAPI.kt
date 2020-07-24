@@ -179,7 +179,7 @@ object InsightCloudApi {
                             Float::class.java -> (value as List<String>).map { it.toFloat() }
                             Double::class.java -> (value as List<String>).map { it.toDouble() }
                             Boolean::class.java -> (value as List<String>).map { it.toBoolean() }
-                            else -> TODO()
+                            else -> TODO("Unknown outClass for List")
                         }
                     }
                     value == null && reference != null -> {
@@ -211,7 +211,7 @@ object InsightCloudApi {
                                         it?.label
                                     } ?: emptyList<String>()
                                 }
-                                else -> TODO()
+                                else -> TODO("Reference-type unhandled")
                             }
                         } else {
                             // single reference
@@ -232,11 +232,11 @@ object InsightCloudApi {
                                 reference.clazzToParse == Int::class.java -> {
                                     insightObjects?.firstOrNull()?.id
                                 }
-                                else -> TODO()
+                                else -> TODO("Single Ref unhandled")
                             }
                         }
                     }
-                    else -> TODO()
+                    else -> TODO("Don't know what to do here")
                 }
                 (parameter to result)
             }?.toMap()
