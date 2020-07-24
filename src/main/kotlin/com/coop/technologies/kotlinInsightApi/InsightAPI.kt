@@ -159,80 +159,88 @@ object InsightCloudApi {
         val kobj = Class.forName(clazz.name).kotlin
         val result = kobj.primaryConstructor
             ?.parameters
-            ?.fold(emptyMap<KParameter, Any?>()) { map, parameter ->
+            ?.map { parameter ->
                 var value = values[parameter.name?.capitalize()]
                 val reference = references[parameter.name?.capitalize()]
                 val definedClass = fields[parameter.name?.capitalize()]
-                var result = value
-                when (definedClass) {
-                    Int::class.java -> result = value.toString().toInt()
-                    Float::class.java -> result = value.toString().toFloat()
-                    Double::class.java -> result = value.toString().toDouble()
-                    Boolean::class.java -> result = value.toString().toBoolean()
-                }
-                if (reference == null && definedClass == List::class.java) {
-                    val outClass =
-                        Class.forName(parameter.type.arguments.first().type!!.javaType.typeName!!)
-                    if (value == null) {
-                        value = emptyList<String>()
-                    }
-                    when (outClass) {
-                        Integer::class.java -> result = (value as List<String>).map { it.toInt() }
-                        Float::class.java -> result = (value as List<String>).map { it.toFloat() }
-                        Double::class.java -> result = (value as List<String>).map { it.toDouble() }
-                        Boolean::class.java -> result =
-                            (value as List<String>).map { it.toBoolean() }
-                    }
-                }
-                if (value == null && reference != null) {
-                    val referenceObject = references[parameter.name?.capitalize()]
-                    val insightObjects = referenceObject?.objectIds?.map {
-                        resolveInsightReference(referenceObject.objectType, it)
-                    }
-                    // multi reference
-                    if(reference.clazzToParse == List::class.java){
-                        val referenceType = parameter.type.arguments.firstOrNull()?.type?.javaType?.typeName?.let { Class.forName(it) }
-                        // object reference
-                        if (InsightEntity::class.java == referenceType?.superclass) {
-                            val clazz = Class.forName(parameter.type.arguments.first().type!!.javaType.typeName!!)
-                            result = insightObjects?.map {
-                                parseInsightObjectToClass(
-                                    clazz as Class<T>,
-                                    it!!
-                                )
-                            } ?: emptyList<T>()
-                        } else if (Class.forName("java.lang.Integer") == referenceType) {
-                            result = reference?.objectIds?: emptyList<Int>()
-                        } else if (String::class.java == referenceType){
-                            result = insightObjects?.mapNotNull {
-                                it?.label
-                            } ?: emptyList<String>()
+                var result = when {
+                    definedClass == Int::class.java -> value.toString().toInt()
+                    definedClass == Float::class.java -> value.toString().toFloat()
+                    definedClass == Double::class.java -> value.toString().toDouble()
+                    definedClass == Boolean::class.java -> value.toString().toBoolean()
+                    definedClass == List::class.java && reference == null -> {
+                        val outClass =
+                            Class.forName(parameter.type.arguments.first().type!!.javaType.typeName!!)
+                        if (value == null) {
+                            value = emptyList<String>()
                         }
-                    } else {
-                        // single reference
-                        when {
-                            InsightEntity::class.java == Class.forName(reference.clazzToParse.name).superclass -> {
-                                val parsedObject = insightObjects?.firstOrNull()?.let {
-                                    parseInsightObjectToClass(
-                                        referenceObject.clazzToParse as Class<T>,
-                                        it
-                                    )
+                        when (outClass) {
+                            Integer::class.java -> (value as List<String>).map { it.toInt() }
+                            Float::class.java -> (value as List<String>).map { it.toFloat() }
+                            Double::class.java -> (value as List<String>).map { it.toDouble() }
+                            Boolean::class.java -> (value as List<String>).map { it.toBoolean() }
+                            else -> TODO()
+                        }
+                    }
+                    value == null && reference != null -> {
+                        val referenceObject = references[parameter.name?.capitalize()]
+                        val insightObjects = referenceObject?.objectIds?.map {
+                            resolveInsightReference(referenceObject.objectType, it)
+                        }
+                        // multi reference
+                        if (reference.clazzToParse == List::class.java) {
+                            val referenceType =
+                                parameter.type.arguments.firstOrNull()?.type?.javaType?.typeName?.let { Class.forName(it) }
+                            // object reference
+                            when {
+                                InsightEntity::class.java == referenceType?.superclass -> {
+                                    val clazz =
+                                        Class.forName(parameter.type.arguments.first().type!!.javaType.typeName!!)
+                                    insightObjects?.map {
+                                        parseInsightObjectToClass(
+                                            clazz as Class<T>,
+                                            it!!
+                                        )
+                                    } ?: emptyList<T>()
                                 }
-                                result = parsedObject
+                                Class.forName("java.lang.Integer") == referenceType -> {
+                                    reference.objectIds
+                                }
+                                String::class.java == referenceType -> {
+                                    insightObjects?.mapNotNull {
+                                        it?.label
+                                    } ?: emptyList<String>()
+                                }
+                                else -> TODO()
                             }
-                            reference.clazzToParse == String::class.java -> {
-                                result =
+                        } else {
+                            // single reference
+                            when {
+                                InsightEntity::class.java == Class.forName(reference.clazzToParse.name).superclass -> {
+                                    val parsedObject = insightObjects?.firstOrNull()?.let {
+                                        parseInsightObjectToClass(
+                                            referenceObject.clazzToParse as Class<T>,
+                                            it
+                                        )
+                                    }
+                                    parsedObject
+                                }
+                                reference.clazzToParse == String::class.java -> {
                                     insightObjects?.firstOrNull()?.attributes?.first { it.objectTypeAttribute?.name == "Name" }
                                         ?.objectAttributeValues?.first()?.value
-                            }
-                            reference.clazzToParse == Int::class.java -> {
-                                result = insightObjects?.firstOrNull()?.id
+                                }
+                                reference.clazzToParse == Int::class.java -> {
+                                    insightObjects?.firstOrNull()?.id
+                                }
+                                else -> TODO()
                             }
                         }
                     }
+                    else -> TODO()
                 }
-                map + (parameter to result)
-            }?.let {
+                (parameter to result)
+            }?.toMap()
+            ?.let {
                 kobj.primaryConstructor?.callBy(it) as T
             }?.apply {
                 this.id = values["Id"] as Int
