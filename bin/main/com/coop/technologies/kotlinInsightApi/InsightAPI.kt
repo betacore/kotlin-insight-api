@@ -211,7 +211,7 @@ object InsightCloudApi {
                     } else {
                         // single reference
                         if (InsightEntity::class.java == Class.forName(reference.clazzToParse.name).superclass) {
-                            val parsedObject = insightObjects?.first()?.let {
+                            val parsedObject = insightObjects?.firstOrNull()?.let {
                                 parseInsightObjectToClass(
                                     referenceObject?.clazzToParse as Class<T>,
                                     it!!
