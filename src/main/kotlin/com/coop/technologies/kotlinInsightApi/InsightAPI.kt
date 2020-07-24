@@ -163,7 +163,7 @@ object InsightCloudApi {
                 var value = values[parameter.name?.capitalize()]
                 val reference = references[parameter.name?.capitalize()]
                 val definedClass = fields[parameter.name?.capitalize()]
-                var result = when {
+                val result = when {
                     definedClass == Int::class.java -> value.toString().toInt()
                     definedClass == Float::class.java -> value.toString().toFloat()
                     definedClass == Double::class.java -> value.toString().toDouble()
@@ -236,7 +236,10 @@ object InsightCloudApi {
                             }
                         }
                     }
-                    else -> null
+                    else -> {
+                        throw NotImplementedError("cls: ${definedClass} - value: ${value}")
+                        null
+                    }
                 }
                 (parameter to result)
             }?.toMap()
