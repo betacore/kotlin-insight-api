@@ -173,7 +173,7 @@ object InsightCloudApi {
                         try {
                             value as String?
                         } catch (e: Exception) {
-                            throw NotImplementedError("Value: $value")
+                            null
                         }
                     }
                     definedClass == List::class.java && reference == null -> {
