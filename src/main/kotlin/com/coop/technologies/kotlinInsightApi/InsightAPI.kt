@@ -57,14 +57,14 @@ object InsightCloudApi {
     suspend fun <T : InsightEntity> getObjectsRaw(clazz: Class<T>): List<InsightObject> {
         val objectName = mapping.get(clazz) ?: ""
         return httpClient.get<InsightObjectEntries> {
-            url("$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&resultsPerPage=${Int.MAX_VALUE}&iql=objectType=\"$objectName\"&includeTypeAttributes=true")
+            url("$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&resultPerPage=${Int.MAX_VALUE}&iql=objectType=\"$objectName\"&includeTypeAttributes=true")
         }.objectEntries
     }
 
     suspend fun <T : InsightEntity> getObjectRaw(clazz: Class<T>, id: Int): InsightObject? {
         val objectName = mapping.get(clazz) ?: ""
         return httpClient.get<InsightObjectEntries> {
-            url("$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&resultsPerPage=${Int.MAX_VALUE}&iql=objectType=\"$objectName\" and objectId=$id&includeTypeAttributes=true")
+            url("$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&resultPerPage=${Int.MAX_VALUE}&iql=objectType=\"$objectName\" and objectId=$id&includeTypeAttributes=true")
         }.objectEntries.firstOrNull()
     }
 
@@ -74,7 +74,7 @@ object InsightCloudApi {
     ): InsightObject? {
         val objectName = mapping.get(clazz) ?: ""
         return httpClient.get<InsightObjectEntries> {
-            url("$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&resultsPerPage=${Int.MAX_VALUE}&iql=objectType=\"$objectName\" and Name=\"$name\"&includeTypeAttributes=true")
+            url("$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&resultPerPage=${Int.MAX_VALUE}&iql=objectType=\"$objectName\" and Name=\"$name\"&includeTypeAttributes=true")
         }.objectEntries.firstOrNull()
     }
 
@@ -84,7 +84,7 @@ object InsightCloudApi {
     ): List<InsightObject> {
         val objectName = mapping.get(clazz) ?: ""
         return httpClient.get<InsightObjectEntries> {
-            url("$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&resultsPerPage=${Int.MAX_VALUE}&iql=objectType=\"$objectName\" and $iql&includeTypeAttributes=true")
+            url("$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&resultPerPage=${Int.MAX_VALUE}&iql=objectType=\"$objectName\" and $iql&includeTypeAttributes=true")
         }.objectEntries
     }
 
@@ -168,7 +168,9 @@ object InsightCloudApi {
                     definedClass == Float::class.java -> value.toString().toFloat()
                     definedClass == Double::class.java -> value.toString().toDouble()
                     definedClass == Boolean::class.java -> value.toString().toBoolean()
-                    definedClass == String::class.java -> value.toString()
+                    definedClass == String::class.java -> {
+                        throw NotImplementedError("Value: $value")
+                    }
                     definedClass == List::class.java && reference == null -> {
                         val outClass =
                             Class.forName(parameter.type.arguments.first().type!!.javaType.typeName!!)
