@@ -183,6 +183,7 @@ object InsightCloudApi {
                             else -> TODO("Unknown outClass for List")
                         }
                     }
+                    definedClass != null && value == null && reference == null -> null
                     value == null && reference != null -> {
                         val referenceObject = references[parameter.name?.capitalize()]
                         val insightObjects = referenceObject?.objectIds?.map {
@@ -198,10 +199,7 @@ object InsightCloudApi {
                                     val clazz =
                                         Class.forName(parameter.type.arguments.first().type!!.javaType.typeName!!)
                                     insightObjects?.map {
-                                        parseInsightObjectToClass(
-                                            clazz as Class<T>,
-                                            it!!
-                                        )
+                                        parseInsightObjectToClass(clazz as Class<T>, it!!)
                                     } ?: emptyList<T>()
                                 }
                                 Class.forName("java.lang.Integer") == referenceType -> {
@@ -219,10 +217,7 @@ object InsightCloudApi {
                             when {
                                 InsightEntity::class.java == Class.forName(reference.clazzToParse.name).superclass -> {
                                     val parsedObject = insightObjects?.firstOrNull()?.let {
-                                        parseInsightObjectToClass(
-                                            referenceObject.clazzToParse as Class<T>,
-                                            it
-                                        )
+                                        parseInsightObjectToClass(referenceObject.clazzToParse as Class<T>, it)
                                     }
                                     parsedObject
                                 }
@@ -238,7 +233,7 @@ object InsightCloudApi {
                         }
                     }
                     else -> {
-                        throw NotImplementedError("cls: ${definedClass} - value: ${value}")
+                        throw NotImplementedError("cls: ${definedClass} - value: ${value} - reference: $reference")
                         null
                     }
                 }
