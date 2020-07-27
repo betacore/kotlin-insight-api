@@ -11,6 +11,7 @@ import io.ktor.http.Headers
 import io.ktor.http.HttpHeaders
 import io.ktor.http.contentType
 import kotlinx.coroutines.runBlocking
+import java.lang.Exception
 import java.net.URLConnection
 import kotlin.reflect.KParameter
 import kotlin.reflect.KProperty1
@@ -168,7 +169,13 @@ object InsightCloudApi {
                     definedClass == Float::class.java -> value.toString().toFloat()
                     definedClass == Double::class.java -> value.toString().toDouble()
                     definedClass == Boolean::class.java -> value.toString().toBoolean()
-                    definedClass == String::class.java -> value as String?
+                    definedClass == String::class.java -> {
+                        try {
+                            value as String?
+                        } catch (e: Exception) {
+                            throw NotImplementedError("Value: $value")
+                        }
+                    }
                     definedClass == List::class.java && reference == null -> {
                         val outClass =
                             Class.forName(parameter.type.arguments.first().type!!.javaType.typeName!!)
