@@ -168,9 +168,7 @@ object InsightCloudApi {
                     definedClass == Float::class.java -> value.toString().toFloat()
                     definedClass == Double::class.java -> value.toString().toDouble()
                     definedClass == Boolean::class.java -> value.toString().toBoolean()
-                    definedClass == String::class.java -> {
-                        throw NotImplementedError("Value: $value")
-                    }
+                    definedClass == String::class.java -> value as String?
                     definedClass == List::class.java && reference == null -> {
                         val outClass =
                             Class.forName(parameter.type.arguments.first().type!!.javaType.typeName!!)
