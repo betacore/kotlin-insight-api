@@ -13,7 +13,6 @@ import io.ktor.http.contentType
 import kotlinx.coroutines.runBlocking
 import java.lang.Exception
 import java.net.URLConnection
-import kotlin.reflect.KParameter
 import kotlin.reflect.KProperty1
 import kotlin.reflect.full.memberProperties
 import kotlin.reflect.full.primaryConstructor
@@ -322,7 +321,7 @@ object InsightCloudApi {
 
     suspend fun <T : InsightEntity> updateObject(obj: T): T {
         reloadSchema()
-        val schema = objectSchemas.filter { it.name == mapping.get(obj::class.java) }.first()
+        val schema = objectSchemas.first { it.name == mapping[obj::class.java] }
         val resolvedObj = resolveReferences(obj)
 
         val editItem = parseObjectToObjectTypeAttributes(resolvedObj, schema)
