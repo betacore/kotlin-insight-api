@@ -5,6 +5,7 @@
 *.iml
 out/
 atlassian-ide-plugin.xml
+bin/*
 
 # ----------------------------------
 # Maven
@@ -23,7 +24,8 @@ buildNumber.properties
 # ----------------------------------
 # Gradle
 # ----------------------------------
-.gradle/
+.gradle
+.gradle/*
 gradle/
 *build/*
 /backend/build/
