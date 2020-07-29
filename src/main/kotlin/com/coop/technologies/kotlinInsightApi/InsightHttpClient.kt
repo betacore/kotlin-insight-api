@@ -17,6 +17,7 @@ fun httpClient(user: String, pass: String) =
             basic {
                 username = user
                 password = pass
+                sendWithoutRequest = true
             }
         }
     }

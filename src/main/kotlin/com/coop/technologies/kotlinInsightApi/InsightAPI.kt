@@ -321,7 +321,7 @@ object InsightCloudApi {
 
     suspend fun <T : InsightEntity> updateObject(obj: T): T {
         reloadSchema()
-        val schema = objectSchemas.filter { it.name == mapping.get(obj::class.java) }.first()
+        val schema = objectSchemas.first { it.name == mapping[obj::class.java] }
         val resolvedObj = resolveReferences(obj)
 
         val editItem = parseObjectToObjectTypeAttributes(resolvedObj, schema)
