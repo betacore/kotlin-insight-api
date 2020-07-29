@@ -15,8 +15,8 @@ fun httpClient(user: String, pass: String) =
         }
         install(Auth) {
             basic {
-                this.username = user
-                this.password = pass
+                username = user
+                password = pass
             }
         }
     }
