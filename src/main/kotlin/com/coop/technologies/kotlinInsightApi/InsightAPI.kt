@@ -189,7 +189,7 @@ object InsightCloudApi {
                             else -> {
                                 if (mapping.keys.contains(outClass)) {
                                     (value as List<InsightObject>).map { parseInsightObjectToClass(mapping.keys.first { key -> key == outClass }, it) }
-                                } else TODO("Unknown outClass for List")
+                                } else TODO("Unknown outClass for List: ${outClass.name}")
                             }
                         }
                     }
