@@ -186,7 +186,11 @@ object InsightCloudApi {
                             Float::class.java -> (value as List<String>).map { it.toFloat() }
                             Double::class.java -> (value as List<String>).map { it.toDouble() }
                             Boolean::class.java -> (value as List<String>).map { it.toBoolean() }
-                            else -> TODO("Unknown outClass for List")
+                            else -> {
+                                if (mapping.keys.contains(outClass)) {
+                                    (value as List<InsightObject>).map { parseInsightObjectToClass(mapping.keys.first { key -> key == outClass }, it) }
+                                } else TODO("Unknown outClass for List")
+                            }
                         }
                     }
                     definedClass != null && value == null && reference == null -> null
