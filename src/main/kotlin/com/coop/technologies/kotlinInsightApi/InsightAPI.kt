@@ -186,6 +186,7 @@ object InsightCloudApi {
                             Float::class.java -> (value as List<String>).map { it.toFloat() }
                             Double::class.java -> (value as List<String>).map { it.toDouble() }
                             Boolean::class.java -> (value as List<String>).map { it.toBoolean() }
+                            String::class.java -> value as List<String>
                             else -> {
                                 if (mapping.keys.contains(outClass)) {
                                     (value as List<InsightObject>).map { parseInsightObjectToClass(mapping.keys.first { key -> key == outClass }, it) }
