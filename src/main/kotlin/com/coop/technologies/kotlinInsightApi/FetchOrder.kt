@@ -3,8 +3,11 @@ package com.coop.technologies.kotlinInsightApi
 import com.linkedplanet.lib.graphlib.Tree
 import com.linkedplanet.lib.graphlib.graphtypes.DirectedGraph
 
-fun <A : InsightEntity> buildFetchList(clazz: Class<A>): List<Class<*>>  =
-    buildTypeTree(clazz).toGraph().invert().getContainedTrees().filterNotNull().fetchOrder()
+fun <A : InsightEntity> buildFetchList(clazz: Class<A>): List<Class<*>> {
+    val graph = buildTypeTree(clazz).toGraph()
+    return if (graph.hasCycle()) emptyList()
+    else graph.invert().getContainedTrees().filterNotNull().fetchOrder()
+}
 
 private fun <A : InsightEntity> buildTypeTree(clazz: Class<A>): Tree<Class<*>> {
     val fieldsMap = clazz.declaredFields.map {
