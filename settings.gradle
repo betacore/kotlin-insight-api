@@ -1,3 +1,9 @@
+sourceControl {
+    gitRepository(uri("https://github.com/link-time/graphlib-kt.git")){
+        producesModule("com.linked-planet.lib:graphlib-kt")
+    }
+}
+
 rootProject.name = 'kotlin-insight-api'
 
 

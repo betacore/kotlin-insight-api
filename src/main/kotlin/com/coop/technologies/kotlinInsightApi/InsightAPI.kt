@@ -17,6 +17,8 @@ import kotlin.reflect.KProperty1
 import kotlin.reflect.full.memberProperties
 import kotlin.reflect.full.primaryConstructor
 import kotlin.reflect.jvm.javaType
+import com.linkedplanet.lib.graphlib.Tree
+import com.linkedplanet.lib.graphlib.graphtypes.DirectedGraph
 
 object InsightCloudApi {
 
@@ -189,7 +191,12 @@ object InsightCloudApi {
                             String::class.java -> value as List<String>
                             else -> {
                                 if (mapping.keys.contains(outClass)) {
-                                    (value as List<InsightObject>).map { parseInsightObjectToClass(mapping.keys.first { key -> key == outClass }, it) }
+                                    (value as List<InsightObject>).map {
+                                        parseInsightObjectToClass(
+                                            mapping.keys.first { key -> key == outClass },
+                                            it
+                                        )
+                                    }
                                 } else TODO("Unknown outClass for List: ${outClass.name}")
                             }
                         }

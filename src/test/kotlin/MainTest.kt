@@ -2,6 +2,7 @@ import com.coop.technologies.kotlinInsightApi.*
 import junit.framework.TestCase
 import kotlinx.coroutines.runBlocking
 import com.coop.technologies.kotlinInsightApi.InsightCloudApi
+import org.junit.Ignore
 import java.io.File
 import java.security.MessageDigest
 
@@ -46,6 +47,7 @@ data class SimpleObject(
     val lastname: String
 ) : InsightEntity()
 
+@Ignore
 class MainTest : TestCase() {
 
     override fun setUp() {
