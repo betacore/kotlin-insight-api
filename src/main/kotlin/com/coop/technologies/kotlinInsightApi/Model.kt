@@ -15,10 +15,15 @@ data class EntityList<T>(
     val entities: List<T>
 )
 
-abstract class InsightEntity {
+data class InsightSimpleObject(
+    override var id: Int,
+    override var name: String
+): InsightEntity()
+
+open class InsightEntity {
     open var id: Int = -1
     var key: String = ""
-    abstract var name: String
+    open var name: String = ""
 
     suspend fun save() {
         if (id == -1) {
