@@ -16,7 +16,6 @@ repositories {
 }
 
 dependencies {
-    implementation("com.linked-planet.lib:graphlib-kt:0.1.0")
     implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
     implementation("io.ktor:ktor-client-gson:$ktor_version")
     implementation("io.ktor:ktor-client-apache:$ktor_version")
