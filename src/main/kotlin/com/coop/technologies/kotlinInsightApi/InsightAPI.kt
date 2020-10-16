@@ -133,7 +133,6 @@ object InsightCloudApi {
                                 InsightReference(
                                     objectType = it.objectTypeAttribute?.referenceObjectType?.name
                                         ?: "",
-                                    //objectId = it.objectTypeAttribute?.referenceObjectTypeId ?: 0,
                                     objectIds = it.objectAttributeValues.map { it.referencedObject.id },
                                     clazzToParse = it1 as Class<T>
                                 )
@@ -148,7 +147,7 @@ object InsightCloudApi {
                             clazz.kotlin
                                 .primaryConstructor
                                 ?.parameters
-                                ?.first { it.name == field }
+                                ?.first { it.name?.capitalize() == field }
                                 ?.type
                                 ?.arguments?.firstOrNull()?.type?.javaType?.typeName?.let { Class.forName(it) }
                         when {
@@ -187,7 +186,6 @@ object InsightCloudApi {
                                     InsightReference(
                                         objectType = it.objectTypeAttribute?.referenceObjectType?.name
                                             ?: "",
-                                        //objectId = it.objectTypeAttribute?.referenceObjectTypeId ?: 0,
                                         objectIds = it.objectAttributeValues.map { it.referencedObject.id },
                                         clazzToParse = it1 as Class<T>
                                     )
@@ -205,7 +203,6 @@ object InsightCloudApi {
                             else it.objectAttributeValues.map { it.value }
                 }.toMap()
             val allValues = id + values
-
             parseObject(clazz, fieldsMap, allValues, references, refs)
         }
     }
@@ -268,8 +265,8 @@ object InsightCloudApi {
                         val intermediate = insightObjects?.flatMap { reference ->
                             referenceObjects?.filter { it.id == reference }.orEmpty()
                         }
-                        if (reference?.clazzToParse == List::class.java) intermediate
-                        else intermediate?.firstOrNull()
+                                if (reference?.clazzToParse == List::class.java) intermediate
+                                else intermediate?.firstOrNull()
                     }
                     else -> {
                         throw NotImplementedError("cls: ${definedClass} - value: ${value} - reference: $reference")
