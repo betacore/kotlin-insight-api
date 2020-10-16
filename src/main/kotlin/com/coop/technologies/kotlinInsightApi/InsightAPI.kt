@@ -268,8 +268,7 @@ object InsightCloudApi {
                         val intermediate = insightObjects?.flatMap { reference ->
                             referenceObjects?.filter { it.id == reference }.orEmpty()
                         }
-                        if (reference?.clazzToParse == List::class.java)
-                            intermediate
+                        if (reference?.clazzToParse == List::class.java) intermediate
                         else intermediate?.firstOrNull()
                     }
                     else -> {
