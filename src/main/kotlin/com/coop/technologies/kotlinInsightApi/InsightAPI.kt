@@ -265,9 +265,12 @@ object InsightCloudApi {
                         val reference = references[parameter.name?.capitalize()]
                         val referenceObjects = referencedObjects[parameter.name?.capitalize()]
                         val insightObjects = reference?.objectIds
-                        insightObjects?.flatMap { reference ->
+                        val intermediate = insightObjects?.flatMap { reference ->
                             referenceObjects?.filter { it.id == reference }.orEmpty()
                         }
+                        if (reference?.clazzToParse == List::class.java)
+                            intermediate
+                        else intermediate?.firstOrNull()
                     }
                     else -> {
                         throw NotImplementedError("cls: ${definedClass} - value: ${value} - reference: $reference")
