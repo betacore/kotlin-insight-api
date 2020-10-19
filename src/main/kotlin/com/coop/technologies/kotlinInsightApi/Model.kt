@@ -3,22 +3,19 @@ package com.coop.technologies.kotlinInsightApi
 import java.io.File
 import java.util.Collections.emptyList
 
-data class InsightName(
-    val value: String
-)
-
-data class InsightId(
-    val value: Int
-)
-
 data class EntityList<T>(
     val entities: List<T>
 )
 
-abstract class InsightEntity {
+data class InsightSimpleObject(
+    override var id: Int,
+    override var name: String
+): InsightEntity()
+
+open class InsightEntity {
     open var id: Int = -1
     var key: String = ""
-    abstract var name: String
+    open var name: String = ""
 
     suspend fun save() {
         if (id == -1) {
@@ -138,7 +135,7 @@ data class ObjectTypeAttribute (
 
 data class InsightReference(
     val objectType: String,
-    val objectIds: List<Int>,
+    val objects: List<Pair<Int,String>>,
     val clazzToParse: Class<out InsightEntity>
 )
 
@@ -149,7 +146,8 @@ data class ObjectAttributeValue(
 )
 
 data class ReferencedObject(
-    val id: Int
+    val id: Int,
+    val label: String
 )
 
 data class InsightAttributeEntry (
