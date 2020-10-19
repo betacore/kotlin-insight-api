@@ -3,14 +3,6 @@ package com.coop.technologies.kotlinInsightApi
 import java.io.File
 import java.util.Collections.emptyList
 
-data class InsightName(
-    val value: String
-)
-
-data class InsightId(
-    val value: Int
-)
-
 data class EntityList<T>(
     val entities: List<T>
 )
@@ -143,7 +135,7 @@ data class ObjectTypeAttribute (
 
 data class InsightReference(
     val objectType: String,
-    val objectIds: List<Int>,
+    val objects: List<Pair<Int,String>>,
     val clazzToParse: Class<out InsightEntity>
 )
 
@@ -154,7 +146,8 @@ data class ObjectAttributeValue(
 )
 
 data class ReferencedObject(
-    val id: Int
+    val id: Int,
+    val label: String
 )
 
 data class InsightAttributeEntry (

@@ -119,26 +119,7 @@ object InsightCloudApi {
         clazz: Class<T>,
         objs: List<InsightObject>
     ): List<T> {
-        val refs = objs.flatMap { obj ->
-            val fieldsMap = clazz.declaredFields.map {
-                it.name.capitalize() to it.type
-            }.toMap()
-            obj.attributes
-                .filter { it.objectTypeAttribute?.referenceObjectType != null }
-                .map {
-                    it.objectTypeAttribute?.name to
-                            (fieldsMap.get(
-                                it.objectTypeAttribute?.name ?: ""
-                            )?.let { Class.forName(it.name) }?.let { it1 ->
-                                InsightReference(
-                                    objectType = it.objectTypeAttribute?.referenceObjectType?.name
-                                        ?: "",
-                                    objectIds = it.objectAttributeValues.map { it.referencedObject.id },
-                                    clazzToParse = it1 as Class<T>
-                                )
-                            })
-                }
-        }.toMap()
+        val refs = buildReferenceMap(objs, clazz)
             .mapNotNull { (field, ref) ->
                 when (ref?.clazzToParse) {
                     null -> null
@@ -151,10 +132,13 @@ object InsightCloudApi {
                                 ?.type
                                 ?.arguments?.firstOrNull()?.type?.javaType?.typeName?.let { Class.forName(it) }
                         when {
+                            referenceType == InsightSimpleObject::class.java -> {
+                                field to ref.objects.map { InsightSimpleObject(it.first, it.second) }
+                            }
                             referenceType?.superclass == InsightEntity::class.java ->
                                 field to parseInsightObjectsToClass(
                                     referenceType as Class<InsightEntity>,
-                                    resolveInsightReferences(ref.objectType, ref.objectIds)
+                                    resolveInsightReferences(ref.objectType, ref.objects.map { it.first })
                                 )
                             else -> null
                         }
@@ -163,7 +147,7 @@ object InsightCloudApi {
                         ref.let {
                             field to parseInsightObjectsToClass(
                                 ref.clazzToParse,
-                                resolveInsightReferences(ref.objectType, ref.objectIds)
+                                resolveInsightReferences(ref.objectType, ref.objects.map { it.first })
                             )
                         }
                     }
@@ -172,26 +156,7 @@ object InsightCloudApi {
 
 
         return objs.map { obj ->
-            val references = objs.flatMap { obj ->
-                val fieldsMap = clazz.declaredFields.map {
-                    it.name.capitalize() to it.type
-                }.toMap()
-                obj.attributes
-                    .filter { it.objectTypeAttribute?.referenceObjectType != null }
-                    .map {
-                        it.objectTypeAttribute?.name to
-                                (fieldsMap.get(
-                                    it.objectTypeAttribute?.name ?: ""
-                                )?.let { Class.forName(it.name) }?.let { it1 ->
-                                    InsightReference(
-                                        objectType = it.objectTypeAttribute?.referenceObjectType?.name
-                                            ?: "",
-                                        objectIds = it.objectAttributeValues.map { it.referencedObject.id },
-                                        clazzToParse = it1 as Class<T>
-                                    )
-                                })
-                    }
-            }.toMap()
+            val references = buildReferenceMap(listOf(obj), clazz)
             val fieldsMap = clazz.declaredFields.map {
                 it.name.capitalize() to it.type
             }.toMap()
@@ -205,6 +170,32 @@ object InsightCloudApi {
             val allValues = id + values
             parseObject(clazz, fieldsMap, allValues, references, refs)
         }
+    }
+
+    private fun <T : InsightEntity> buildReferenceMap(
+        objs: List<InsightObject>,
+        clazz: Class<T>
+    ): Map<String?, InsightReference?> {
+        return objs.flatMap { obj ->
+            val fieldsMap = clazz.declaredFields.map {
+                it.name.capitalize() to it.type
+            }.toMap()
+            obj.attributes
+                .filter { it.objectTypeAttribute?.referenceObjectType != null }
+                .map {
+                    it.objectTypeAttribute?.name to
+                            (fieldsMap.get(
+                                it.objectTypeAttribute?.name ?: ""
+                            )?.let { Class.forName(it.name) }?.let { it1 ->
+                                InsightReference(
+                                    objectType = it.objectTypeAttribute?.referenceObjectType?.name
+                                        ?: "",
+                                    objects = it.objectAttributeValues.map { it.referencedObject.id to it.referencedObject.label },
+                                    clazzToParse = it1 as Class<T>
+                                )
+                            })
+                }
+        }.toMap()
     }
 
     private suspend fun <T : InsightEntity> parseObject(
@@ -261,12 +252,12 @@ object InsightCloudApi {
                     value == null && reference != null -> {
                         val reference = references[parameter.name?.capitalize()]
                         val referenceObjects = referencedObjects[parameter.name?.capitalize()]
-                        val insightObjects = reference?.objectIds
+                        val insightObjects = reference?.objects?.map { it.first }
                         val intermediate = insightObjects?.flatMap { reference ->
                             referenceObjects?.filter { it.id == reference }.orEmpty()
                         }
-                                if (reference?.clazzToParse == List::class.java) intermediate
-                                else intermediate?.firstOrNull()
+                        if (reference?.clazzToParse == List::class.java) intermediate
+                        else intermediate?.firstOrNull()
                     }
                     else -> {
                         throw NotImplementedError("cls: ${definedClass} - value: ${value} - reference: $reference")
