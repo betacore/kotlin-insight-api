@@ -176,8 +176,8 @@ object InsightCloudApi {
     private fun <T : InsightEntity> buildReferenceMap(
         objs: List<InsightObject>,
         clazz: Class<T>
-    ): Map<String?, InsightReference?> {
-        return objs.flatMap { obj ->
+    ): Map<String?, InsightReference<T>?> {
+        return objs.map { obj ->
             val fieldsMap = clazz.declaredFields.map {
                 it.name.capitalize() to it.type
             }.toMap()
@@ -185,7 +185,7 @@ object InsightCloudApi {
                 .filter { it.objectTypeAttribute?.referenceObjectType != null }
                 .map {
                     it.objectTypeAttribute?.name to
-                            (fieldsMap.get(
+                            listOfNotNull((fieldsMap.get(
                                 it.objectTypeAttribute?.name ?: ""
                             )?.let { Class.forName(it.name) }?.let { it1 ->
                                 InsightReference(
@@ -195,15 +195,27 @@ object InsightCloudApi {
                                     clazzToParse = it1 as Class<T>
                                 )
                             })
+                            )
                 }
-        }.toMap()
+        }.fold(emptyMap()) { acc, pairList ->
+            acc + pairList.map { (k, v) ->
+                k to (v + acc[k]).filterNotNull()
+            }.map { (k, v) ->
+                k to if(v.isEmpty()) v.firstOrNull() else v.flatten()
+            }
+        }
     }
+
+    private fun <A : InsightEntity> List<InsightReference<A>>.flatten(): InsightReference<A> =
+        this.fold(this.first().copy(objects = emptyList())) { acc, ref ->
+            acc?.copy(objects = acc.objects + ref.objects)
+        }
 
     private suspend fun <T : InsightEntity> parseObject(
         clazz: Class<T>,
         fields: Map<String, Class<out Any?>>,
         values: Map<String?, Any?>,
-        references: Map<String?, InsightReference?>,
+        references: Map<String?, InsightReference<T>?>,
         referencedObjects: Map<String?, List<InsightEntity>>
     ): T {
         val kobj = Class.forName(clazz.name).kotlin

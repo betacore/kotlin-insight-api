@@ -133,10 +133,10 @@ data class ObjectTypeAttribute (
     val referenceObjectType: ObjectType
 )
 
-data class InsightReference(
+data class InsightReference<A: InsightEntity>(
     val objectType: String,
     val objects: List<Pair<Int,String>>,
-    val clazzToParse: Class<out InsightEntity>
+    val clazzToParse: Class<A>
 )
 
 data class ObjectAttributeValue(
