@@ -12,10 +12,10 @@ data class InsightSimpleObject(
     override var name: String
 ): InsightEntity()
 
-open class InsightEntity {
+abstract class InsightEntity {
     open var id: Int = -1
     var key: String = ""
-    open var name: String = ""
+    abstract var name: String
 
     suspend fun save() {
         if (id == -1) {

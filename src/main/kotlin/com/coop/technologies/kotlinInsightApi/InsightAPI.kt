@@ -103,16 +103,17 @@ object InsightCloudApi {
     }
 
     private suspend fun resolveInsightReferences(objectType: String, ids: List<Int>): List<InsightObject> {
-        val objects = httpClient.get<InsightObjectEntries> {
-            url(
-                "$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&iql=objectType=\"$objectType\" and objectId in (${
-                    ids.joinToString(
-                        ","
-                    )
-                })&includeTypeAttributes=true"
-            )
+        return ids.chunked(50).flatMap { idList ->
+            httpClient.get<InsightObjectEntries> {
+                url(
+                    "$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&iql=objectType=\"$objectType\" and objectId in (${
+                        idList.joinToString(
+                            ","
+                        )
+                    })&includeTypeAttributes=true"
+                )
+            }.objectEntries
         }
-        return objects.objectEntries
     }
 
     suspend fun <T : InsightEntity> parseInsightObjectsToClass(
