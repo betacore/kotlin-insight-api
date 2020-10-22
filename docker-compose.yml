@@ -10,7 +10,7 @@ services:
       - POSTGRES_DB=jira
 
   jira:
-    image: kadega/jira-insight:5
+    image: 276003551821.dkr.ecr.eu-central-1.amazonaws.com/kotlin-insight-api-test:2
     ports:
       - "8080:8080"
     environment:

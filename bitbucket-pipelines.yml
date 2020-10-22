@@ -20,6 +20,6 @@ definitions:
     jira:
       memory: 3072
       image:
-        name: kadega/jira-insight:2
+        name: 276003551821.dkr.ecr.eu-central-1.amazonaws.com/kotlin-insight-api-test:2
         username: $DOCKER_USERNAME
         password: $DOCKER_TOKEN
