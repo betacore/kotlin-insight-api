@@ -102,11 +102,11 @@ object InsightCloudApi {
         return parseInsightObjectsToClass(clazz, objs)
     }
 
-    private suspend fun resolveInsightReferences(objectType: String, ids: List<Int>): List<InsightObject> {
-        return ids.chunked(50).flatMap { idList ->
+    private suspend fun resolveInsightReferences(objectType: String, ids: Set<Int>): List<InsightObject> {
+        val results = ids.chunked(50).map { idList ->
             httpClient.get<InsightObjectEntries> {
                 url(
-                    "$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&iql=objectType=\"$objectType\" and objectId in (${
+                    "$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&resultPerPage=${Int.MAX_VALUE}&iql=objectType=\"$objectType\" and objectId in (${
                         idList.joinToString(
                             ","
                         )
@@ -114,6 +114,7 @@ object InsightCloudApi {
                 )
             }.objectEntries
         }
+        return results.flatten()
     }
 
     suspend fun <T : InsightEntity> parseInsightObjectsToClass(
@@ -139,7 +140,7 @@ object InsightCloudApi {
                             referenceType?.superclass == InsightEntity::class.java ->
                                 field to parseInsightObjectsToClass(
                                     referenceType as Class<InsightEntity>,
-                                    resolveInsightReferences(ref.objectType, ref.objects.map { it.first })
+                                    resolveInsightReferences(ref.objectType, ref.objects.map { it.first }.toSet())
                                 )
                             else -> null
                         }
@@ -148,7 +149,7 @@ object InsightCloudApi {
                         ref.let {
                             field to parseInsightObjectsToClass(
                                 ref.clazzToParse,
-                                resolveInsightReferences(ref.objectType, ref.objects.map { it.first })
+                                resolveInsightReferences(ref.objectType, ref.objects.map { it.first }.toSet())
                             )
                         }
                     }

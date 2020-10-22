@@ -23,6 +23,7 @@ fun httpClient(user: String, pass: String) =
         }
         engine {
             customizeClient {
+                socketTimeout = 10000
                 setConnectionReuseStrategy(NoConnectionReuseStrategy())
             }
         }
