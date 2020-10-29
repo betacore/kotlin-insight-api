@@ -365,6 +365,15 @@ object InsightCloudApi {
         return true
     }
 
+    suspend fun createComment(id: Int, message: String): Boolean {
+        val json = httpClient.post<String> {
+            url("$BASE_URL/rest/insight/1.0/comment/create")
+            contentType(ContentType.Application.Json)
+            body = InsightCommentBody(id, message)
+        }
+        return true
+    }
+
     suspend fun <T : InsightEntity> updateObject(obj: T): T {
         val schema = objectSchemas.first { it.name == mapping[obj::class.java] }
         val resolvedObj = resolveReferences(obj)
