@@ -6,6 +6,7 @@ import io.ktor.client.request.*
 import io.ktor.client.request.forms.*
 import io.ktor.http.*
 import kotlinx.coroutines.runBlocking
+import org.slf4j.LoggerFactory
 import java.net.URLConnection
 import kotlin.reflect.KProperty1
 import kotlin.reflect.full.memberProperties
@@ -342,6 +343,7 @@ object InsightCloudApi {
                 ObjectEditItemAttribute(it.id, listOf(ObjectEditItemAttributeValue(value)))
             }
         }.filterNotNull()
+        log.debug("ParsedObject: [$attributes]")
         return ObjectEditItem(schema.id, attributes)
     }
 
@@ -363,7 +365,7 @@ object InsightCloudApi {
             contentType(ContentType.Application.Json)
             body = editItem
         }
-        val jsonObject = JsonParser().parse(json).asJsonObject
+        val jsonObject = JsonParser.parseString(json).asJsonObject
         obj.id = jsonObject.get("id").asInt
         obj.key = jsonObject.get("objectKey").asString
         return obj
@@ -425,5 +427,5 @@ object InsightCloudApi {
         return result
     }
 
-
+    private val log = LoggerFactory.getLogger(InsightCloudApi::class.java)
 }
