@@ -314,7 +314,7 @@ object InsightCloudApi {
             it as KProperty1<Any, *>
         }.filter {
             val newObj = it.get(obj)
-            Class.forName(newObj!!.javaClass.name).superclass == InsightEntity::class.java
+            newObj?. let { Class.forName(it.javaClass.name).superclass == InsightEntity::class.java } == true
         }.onEach {
             val item = it.get(obj) as T
             //getObjectRaw(it.second::class.java)
