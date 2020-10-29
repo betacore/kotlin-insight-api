@@ -9,6 +9,7 @@ import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
 import java.net.URLConnection
 import kotlin.reflect.KProperty1
+import kotlin.reflect.full.isSubclassOf
 import kotlin.reflect.full.memberProperties
 import kotlin.reflect.full.primaryConstructor
 import kotlin.reflect.jvm.javaType
@@ -335,7 +336,7 @@ object InsightCloudApi {
             var value =
                 (obj::class.memberProperties.filter { it.name == name }
                     .firstOrNull() as KProperty1<Any, *>?)?.get(obj)
-            if (it.type.superclass == InsightEntity::class.java) {
+            if (it.type.kotlin.isSubclassOf(InsightEntity::class)) {
                 // override with references --> key
                 value = (value as InsightEntity).key
             }
