@@ -291,7 +291,6 @@ object InsightCloudApi {
 
 
     suspend fun <T : InsightEntity> createObject(obj: T): T {
-        reloadSchema()
         val schema = objectSchemas.first { it.name == mapping[obj::class.java] }
         val resolvedObj = resolveReferences(obj)
 
@@ -355,7 +354,6 @@ object InsightCloudApi {
     }
 
     suspend fun <T : InsightEntity> updateObject(obj: T): T {
-        reloadSchema()
         val schema = objectSchemas.first { it.name == mapping[obj::class.java] }
         val resolvedObj = resolveReferences(obj)
 
