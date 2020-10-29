@@ -127,7 +127,7 @@ data class InsightObjectAttribute(
 data class InsightCommentBody(
     val id: Int,
     val comment: String,
-    val role: Int = 0
+    val role: Int = 2
 )
 
 data class InsightAttribute(
