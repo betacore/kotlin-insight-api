@@ -47,6 +47,12 @@ abstract class InsightEntity {
         return InsightCloudApi.getAttachments(this)
     }
 
+    suspend fun comment(message: String): Unit {
+        if (id != -1) {
+            InsightCloudApi.createComment(this.id, message)
+        }
+    }
+
     suspend fun addAttachment(filename: String, byteArray: ByteArray, comment: String = ""): InsightAttachment {
         return InsightCloudApi.uploadAttachment(this, filename, byteArray, comment).first()
     }
@@ -116,6 +122,12 @@ data class ObjectType(
 data class InsightObjectAttribute(
     val id: Int,
     val objectTypeAttribute: List<InsightAttribute>
+)
+
+data class InsightCommentBody(
+    val objectId: Int,
+    val comment: String,
+    val role: Int = 0
 )
 
 data class InsightAttribute(

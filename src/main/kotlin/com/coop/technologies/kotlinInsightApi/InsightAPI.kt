@@ -6,8 +6,11 @@ import io.ktor.client.request.*
 import io.ktor.client.request.forms.*
 import io.ktor.http.*
 import kotlinx.coroutines.runBlocking
+import org.slf4j.LoggerFactory
+import java.lang.reflect.Field
 import java.net.URLConnection
 import kotlin.reflect.KProperty1
+import kotlin.reflect.full.isSubclassOf
 import kotlin.reflect.full.memberProperties
 import kotlin.reflect.full.primaryConstructor
 import kotlin.reflect.jvm.javaType
@@ -202,7 +205,7 @@ object InsightCloudApi {
             acc + pairList.map { (k, v) ->
                 k to (v + acc[k]).filterNotNull()
             }.map { (k, v) ->
-                k to if(v.isEmpty()) v.firstOrNull() else v.flatten()
+                k to if (v.isEmpty()) v.firstOrNull() else v.flatten()
             }
         }
     }
@@ -311,7 +314,7 @@ object InsightCloudApi {
             it as KProperty1<Any, *>
         }.filter {
             val newObj = it.get(obj)
-            Class.forName(newObj!!.javaClass.name).superclass == InsightEntity::class.java
+            newObj?. let { Class.forName(it.javaClass.name).superclass == InsightEntity::class.java } == true
         }.onEach {
             val item = it.get(obj) as T
             //getObjectRaw(it.second::class.java)
@@ -329,19 +332,28 @@ object InsightCloudApi {
         obj: T,
         schema: ObjectTypeSchema
     ): ObjectEditItem {
-        val attributes: List<ObjectEditItemAttribute> = obj::class.java.declaredFields.map {
-            val name = it.name
-            var value =
-                (obj::class.memberProperties.filter { it.name == name }
-                    .firstOrNull() as KProperty1<Any, *>?)?.get(obj)
-            if (it.type.superclass == InsightEntity::class.java) {
-                // override with references --> key
-                value = (value as InsightEntity).key
-            }
-            schema.attributes.filter { it.name == name.capitalize() }.firstOrNull()?.let {
-                ObjectEditItemAttribute(it.id, listOf(ObjectEditItemAttributeValue(value)))
-            }
+        fun <X> Field.value(obj: T): X? =
+            (obj::class.memberProperties.filter { it.name == name }
+                .firstOrNull() as KProperty1<T, X>?)?.get(obj)
+
+        val attributes: List<ObjectEditItemAttribute> = obj::class.java.declaredFields.map { field ->
+            val values = if (field.type.kotlin.isSubclassOf(InsightEntity::class)) {
+                listOf((field?.value<InsightEntity>(obj))?.key)
+            } else if (field.type == List::class.java) {
+                field?.value<List<*>>(obj)?.mapNotNull { item ->
+                    if (item!!::class.isSubclassOf(InsightEntity::class)) {
+                        (item as InsightEntity).key
+                    } else item
+                }
+            } else listOf(field?.value<Any>(obj))
+
+            schema.attributes
+                .firstOrNull { it.name == field.name.capitalize() }
+                ?.let {
+                    ObjectEditItemAttribute(it.id, values.orEmpty().mapNotNull { item -> ObjectEditItemAttributeValue(item)})
+                }
         }.filterNotNull()
+        log.debug("ParsedObject: [$attributes]")
         return ObjectEditItem(schema.id, attributes)
     }
 
@@ -349,6 +361,15 @@ object InsightCloudApi {
         val json = httpClient.delete<String> {
             url("$BASE_URL/rest/insight/1.0/object/$id")
             contentType(ContentType.Application.Json)
+        }
+        return true
+    }
+
+    suspend fun createComment(id: Int, message: String): Boolean {
+        val json = httpClient.post<String> {
+            url("$BASE_URL/rest/insight/1.0/comment/create")
+            contentType(ContentType.Application.Json)
+            body = InsightCommentBody(id, message)
         }
         return true
     }
@@ -363,7 +384,7 @@ object InsightCloudApi {
             contentType(ContentType.Application.Json)
             body = editItem
         }
-        val jsonObject = JsonParser().parse(json).asJsonObject
+        val jsonObject = JsonParser.parseString(json).asJsonObject
         obj.id = jsonObject.get("id").asInt
         obj.key = jsonObject.get("objectKey").asString
         return obj
@@ -425,5 +446,5 @@ object InsightCloudApi {
         return result
     }
 
-
+    private val log = LoggerFactory.getLogger(InsightCloudApi::class.java)
 }
