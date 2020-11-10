@@ -80,7 +80,7 @@ object InsightCloudApi {
     ): List<InsightObject> {
         val objectName = mapping.get(clazz) ?: ""
         val urlFun: HttpRequestBuilder.(Int)->Unit = { page: Int ->
-            url("$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&resultPerPage=${pageSize}&iql=objectType=\"$objectName\"${iql?.let { " and $it" }}&includeTypeAttributes=true&page=$page")
+            url("$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&resultPerPage=${pageSize}&iql=objectType=\"$objectName\"${iql?.let { " and $it" }.orEmpty()}&includeTypeAttributes=true&page=$page")
         }
         val result = httpClient.get<InsightObjectEntries> {
             urlFun(1)
