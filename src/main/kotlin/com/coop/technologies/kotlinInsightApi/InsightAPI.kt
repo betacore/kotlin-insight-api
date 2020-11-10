@@ -54,24 +54,17 @@ object InsightCloudApi {
     }
 
     suspend fun <T : InsightEntity> getObjectsRaw(clazz: Class<T>): List<InsightObject> {
-        return getObjectsRawByIQL(clazz,null)
+        return getObjectsRawByIQL(clazz, null)
     }
 
     suspend fun <T : InsightEntity> getObjectRaw(clazz: Class<T>, id: Int): InsightObject? {
-        val objectName = mapping.get(clazz) ?: ""
-        return httpClient.get<InsightObjectEntries> {
-            url("$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&resultPerPage=${pageSize}&iql=objectType=\"$objectName\" and objectId=$id&includeTypeAttributes=true")
-        }.objectEntries.firstOrNull()
+        val iql = "objectId=$id"
+        return getObjectsRawByIQL(clazz, iql).firstOrNull()
     }
 
-    suspend fun <T : InsightEntity> getObjectRawByName(
-        clazz: Class<T>,
-        name: String
-    ): InsightObject? {
-        val objectName = mapping.get(clazz) ?: ""
-        return httpClient.get<InsightObjectEntries> {
-            url("$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&resultPerPage=${pageSize}&iql=objectType=\"$objectName\" and Name=\"$name\"&includeTypeAttributes=true")
-        }.objectEntries.firstOrNull()
+    suspend fun <T : InsightEntity> getObjectRawByName(clazz: Class<T>, name: String): InsightObject? {
+        val iql = "Name=\"$name\""
+        return getObjectsRawByIQL(clazz, iql).firstOrNull()
     }
 
     suspend fun <T : InsightEntity> getObjectsRawByIQL(
@@ -79,16 +72,20 @@ object InsightCloudApi {
         iql: String?
     ): List<InsightObject> {
         val objectName = mapping.get(clazz) ?: ""
-        val urlFun: HttpRequestBuilder.(Int)->Unit = { page: Int ->
-            url("$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&resultPerPage=${pageSize}&iql=objectType=\"$objectName\"${iql?.let { " and $it" }.orEmpty()}&includeTypeAttributes=true&page=$page")
+        val urlFun: HttpRequestBuilder.(Int) -> Unit = { page: Int ->
+            url(
+                "$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&resultPerPage=${pageSize}&iql=objectType=\"$objectName\"${
+                    iql?.let { " and $it" }.orEmpty()
+                }&includeTypeAttributes=true&page=$page"
+            )
         }
         val result = httpClient.get<InsightObjectEntries> {
             urlFun(1)
         }
         val remainingPages = if (result.pageSize > 1) {
-            generateSequence(2) { s -> if (s < result.pageSize) s+1 else null }
+            generateSequence(2) { s -> if (s < result.pageSize) s + 1 else null }
         } else emptySequence()
-        val pageContents = remainingPages.toList().flatMap {page ->
+        val pageContents = remainingPages.toList().flatMap { page ->
             httpClient.get<InsightObjectEntries> {
                 urlFun(page)
             }.objectEntries
@@ -326,7 +323,7 @@ object InsightCloudApi {
             it as KProperty1<Any, *>
         }.filter {
             val newObj = it.get(obj)
-            newObj?. let { Class.forName(it.javaClass.name).superclass == InsightEntity::class.java } == true
+            newObj?.let { Class.forName(it.javaClass.name).superclass == InsightEntity::class.java } == true
         }.onEach {
             val item = it.get(obj) as T
             //getObjectRaw(it.second::class.java)
@@ -362,7 +359,9 @@ object InsightCloudApi {
             schema.attributes
                 .firstOrNull { it.name == field.name.capitalize() }
                 ?.let {
-                    ObjectEditItemAttribute(it.id, values.orEmpty().mapNotNull { item -> ObjectEditItemAttributeValue(item)})
+                    ObjectEditItemAttribute(
+                        it.id,
+                        values.orEmpty().mapNotNull { item -> ObjectEditItemAttributeValue(item) })
                 }
         }.filterNotNull()
         log.debug("ParsedObject: [$attributes]")
