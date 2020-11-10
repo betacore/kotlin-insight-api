@@ -20,11 +20,13 @@ object InsightCloudApi {
     private var BASE_URL = "https://insight-api.riada.io"
     private var schemaId: Int = -1
     val mapping: MutableMap<Class<out InsightEntity>, String> = mutableMapOf()
+    var pageSize: Int = 50
     var objectSchemas: List<ObjectTypeSchema> = emptyList()
     var httpClient: HttpClient = httpClient("", "")
 
     // One Time Initialization
-    fun init(schemaId: Int, url: String, username: String, password: String) {
+    fun init(schemaId: Int, url: String, username: String, password: String, pageSize: Int = 50) {
+        this.pageSize = pageSize
         this.BASE_URL = url
         this.schemaId = schemaId
         this.httpClient = httpClient(username, password)
@@ -52,16 +54,13 @@ object InsightCloudApi {
     }
 
     suspend fun <T : InsightEntity> getObjectsRaw(clazz: Class<T>): List<InsightObject> {
-        val objectName = mapping.get(clazz) ?: ""
-        return httpClient.get<InsightObjectEntries> {
-            url("$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&resultPerPage=${Int.MAX_VALUE}&iql=objectType=\"$objectName\"&includeTypeAttributes=true")
-        }.objectEntries
+        return getObjectsRawByIQL(clazz,null)
     }
 
     suspend fun <T : InsightEntity> getObjectRaw(clazz: Class<T>, id: Int): InsightObject? {
         val objectName = mapping.get(clazz) ?: ""
         return httpClient.get<InsightObjectEntries> {
-            url("$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&resultPerPage=${Int.MAX_VALUE}&iql=objectType=\"$objectName\" and objectId=$id&includeTypeAttributes=true")
+            url("$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&resultPerPage=${pageSize}&iql=objectType=\"$objectName\" and objectId=$id&includeTypeAttributes=true")
         }.objectEntries.firstOrNull()
     }
 
@@ -71,18 +70,31 @@ object InsightCloudApi {
     ): InsightObject? {
         val objectName = mapping.get(clazz) ?: ""
         return httpClient.get<InsightObjectEntries> {
-            url("$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&resultPerPage=${Int.MAX_VALUE}&iql=objectType=\"$objectName\" and Name=\"$name\"&includeTypeAttributes=true")
+            url("$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&resultPerPage=${pageSize}&iql=objectType=\"$objectName\" and Name=\"$name\"&includeTypeAttributes=true")
         }.objectEntries.firstOrNull()
     }
 
     suspend fun <T : InsightEntity> getObjectsRawByIQL(
         clazz: Class<T>,
-        iql: String
+        iql: String?
     ): List<InsightObject> {
         val objectName = mapping.get(clazz) ?: ""
-        return httpClient.get<InsightObjectEntries> {
-            url("$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&resultPerPage=${Int.MAX_VALUE}&iql=objectType=\"$objectName\" and $iql&includeTypeAttributes=true")
-        }.objectEntries
+        val urlFun: HttpRequestBuilder.(Int)->Unit = { page: Int ->
+            url("$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&resultPerPage=${pageSize}&iql=objectType=\"$objectName\"${iql?.let { " and $it" }}&includeTypeAttributes=true&page=$page")
+        }
+        val result = httpClient.get<InsightObjectEntries> {
+            urlFun(1)
+        }
+        val remainingPages = if (result.pageSize > 1) {
+            generateSequence(2) { s -> if (s < result.pageSize) s+1 else null }
+        } else emptySequence()
+        val pageContents = remainingPages.toList().flatMap {page ->
+            httpClient.get<InsightObjectEntries> {
+                urlFun(page)
+            }.objectEntries
+        }
+
+        return result.objectEntries + pageContents
     }
 
     suspend fun <T : InsightEntity> getObjects(clazz: Class<T>): List<T> {
