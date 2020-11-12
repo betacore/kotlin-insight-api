@@ -239,10 +239,10 @@ object InsightCloudApi {
                 val reference = references[parameter.name?.capitalize()]
                 val definedClass = fields[parameter.name?.capitalize()]
                 val result = when {
-                    definedClass == Int::class.java -> value.toString().toInt()
-                    definedClass == Float::class.java -> value.toString().toFloat()
-                    definedClass == Double::class.java -> value.toString().toDouble()
-                    definedClass == Boolean::class.java -> value.toString().toBoolean()
+                    definedClass == Int::class.java -> value?.toString()?.toInt()
+                    definedClass == Float::class.java -> value?.toString()?.toFloat()
+                    definedClass == Double::class.java -> value?.toString()?.toDouble()
+                    definedClass == Boolean::class.java -> value?.toString()?.toBoolean()
                     definedClass == String::class.java -> {
                         try {
                             value as String?
