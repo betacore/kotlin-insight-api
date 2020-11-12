@@ -242,7 +242,7 @@ object InsightCloudApi {
                     definedClass == Int::class.java -> value?.toString()?.toInt()
                     definedClass == java.lang.Float::class.java -> value?.toString()?.toFloat()
                     definedClass == Double::class.java -> value?.toString()?.toDouble()
-                    definedClass == Boolean::class.java -> value?.toString()?.toBoolean()
+                    definedClass == java.lang.Boolean::class.java -> value?.toString()?.toBoolean()
                     definedClass == String::class.java -> {
                         try {
                             value as String?
