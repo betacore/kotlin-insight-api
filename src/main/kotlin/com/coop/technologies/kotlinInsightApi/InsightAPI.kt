@@ -293,6 +293,7 @@ object InsightCloudApi {
                 (parameter to result)
             }?.toMap()
             ?.let {
+                log.debug("Calling primary constructor of ${clazz.name} with parameters ${it}")
                 kobj.primaryConstructor?.callBy(it) as T
             }?.apply {
                 this.id = values["Id"] as Int
