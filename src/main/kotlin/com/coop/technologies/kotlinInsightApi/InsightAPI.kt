@@ -71,6 +71,7 @@ object InsightCloudApi {
         clazz: Class<T>,
         iql: String?
     ): List<InsightObject> {
+        log.debug("Getting objects for [${clazz.name}] with [$iql]")
         val objectName = mapping.get(clazz) ?: ""
         val urlFun: HttpRequestBuilder.(Int) -> Unit = { page: Int ->
             url(
@@ -115,6 +116,7 @@ object InsightCloudApi {
     }
 
     private suspend fun resolveInsightReferences(objectType: String, ids: Set<Int>): List<InsightObject> {
+        log.debug("Resolving references for objectType [$objectType]")
         val results = ids.chunked(50).map { idList ->
             httpClient.get<InsightObjectEntries> {
                 url(
@@ -126,6 +128,7 @@ object InsightCloudApi {
                 )
             }.objectEntries
         }
+        log.debug("Resolved references for objectType [$objectType]")
         return results.flatten()
     }
 
@@ -170,6 +173,7 @@ object InsightCloudApi {
 
 
         return objs.map { obj ->
+            log.trace("Parsing object [${obj.label}]")
             val references = buildReferenceMap(listOf(obj), clazz)
             val fieldsMap = clazz.declaredFields.map {
                 it.name.capitalize() to it.type
@@ -301,6 +305,7 @@ object InsightCloudApi {
                 this.id = values["Id"] as Int
                 this.key = values["Key"] as String
             } ?: throw RuntimeException("Object ${clazz.name} could not be loaded")
+        log.debug("Successfully parsed object [${result.key}]")
         return result
     }
 
