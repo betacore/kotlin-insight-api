@@ -136,6 +136,7 @@ object InsightCloudApi {
         clazz: Class<T>,
         objs: List<InsightObject>
     ): List<T> {
+        log.debug("Parsing objects of type [${clazz.name}]")
         val refs = buildReferenceMap(objs, clazz)
             .mapNotNull { (field, ref) ->
                 when (ref?.clazzToParse) {
@@ -194,6 +195,7 @@ object InsightCloudApi {
         objs: List<InsightObject>,
         clazz: Class<T>
     ): Map<String?, InsightReference<T>?> {
+        log.debug("Building reference map for [${clazz.name}]")
         return objs.map { obj ->
             val fieldsMap = clazz.declaredFields.map {
                 it.name.capitalize() to it.type
@@ -305,7 +307,7 @@ object InsightCloudApi {
                 this.id = values["Id"] as Int
                 this.key = values["Key"] as String
             } ?: throw RuntimeException("Object ${clazz.name} could not be loaded")
-        log.debug("Successfully parsed object [${result.key}]")
+        log.trace("Successfully parsed object [${result.key}]")
         return result
     }
 
