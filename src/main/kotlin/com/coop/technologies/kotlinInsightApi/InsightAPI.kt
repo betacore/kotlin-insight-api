@@ -92,6 +92,7 @@ object InsightCloudApi {
             }.objectEntries
         }
 
+        log.debug("Returning [${(result.objectEntries + pageContents).size}] objects for [${clazz.name}]")
         return result.objectEntries + pageContents
     }
 
@@ -136,7 +137,7 @@ object InsightCloudApi {
         clazz: Class<T>,
         objs: List<InsightObject>
     ): List<T> {
-        log.debug("Parsing objects of type [${clazz.name}]")
+        log.debug("Collecting references for objects of type [${clazz.name}]")
         val refs = buildReferenceMap(objs, clazz)
             .mapNotNull { (field, ref) ->
                 when (ref?.clazzToParse) {
@@ -172,7 +173,7 @@ object InsightCloudApi {
                 }
             }.toMap()
 
-
+        log.debug("Parsing objects of type [${clazz.name}]")
         return objs.map { obj ->
             log.trace("Parsing object [${obj.label}]")
             val references = buildReferenceMap(listOf(obj), clazz)
@@ -195,7 +196,7 @@ object InsightCloudApi {
         objs: List<InsightObject>,
         clazz: Class<T>
     ): Map<String?, InsightReference<T>?> {
-        log.debug("Building reference map for [${clazz.name}]")
+        log.trace("Building reference map for [${clazz.name}]")
         return objs.map { obj ->
             val fieldsMap = clazz.declaredFields.map {
                 it.name.capitalize() to it.type
