@@ -6,6 +6,7 @@ import io.ktor.client.features.auth.Auth
 import io.ktor.client.features.auth.providers.basic
 import io.ktor.client.features.json.GsonSerializer
 import io.ktor.client.features.json.JsonFeature
+import org.eclipse.jetty.util.ssl.SslContextFactory
 
 
 fun httpClient(user: String, pass: String) =
@@ -21,5 +22,6 @@ fun httpClient(user: String, pass: String) =
             }
         }
         engine {
+            sslContextFactory = SslContextFactory.Client()
         }
     }
