@@ -1,16 +1,14 @@
 package com.coop.technologies.kotlinInsightApi
 
 import io.ktor.client.HttpClient
-import io.ktor.client.engine.jetty.*
 import io.ktor.client.features.auth.Auth
 import io.ktor.client.features.auth.providers.basic
 import io.ktor.client.features.json.GsonSerializer
 import io.ktor.client.features.json.JsonFeature
-import org.eclipse.jetty.util.ssl.SslContextFactory
 
 
 fun httpClient(user: String, pass: String) =
-    HttpClient(Jetty) {
+    HttpClient() {
         install(JsonFeature) {
             serializer = GsonSerializer()
         }
@@ -22,6 +20,5 @@ fun httpClient(user: String, pass: String) =
             }
         }
         engine {
-            sslContextFactory = SslContextFactory.Client()
         }
     }
