@@ -21,6 +21,5 @@ fun httpClient(user: String, pass: String) =
             }
         }
         engine {
-            threadsCount = 4
         }
     }
