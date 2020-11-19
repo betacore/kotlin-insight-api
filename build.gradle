@@ -7,7 +7,7 @@ plugins {
 group 'com.coop-technologies'
 version '1.0'
 
-sourceCompatibility = 1.8
+sourceCompatibility = 1.9
 def ktor_version = "1.4.0"
 
 repositories {
@@ -16,7 +16,7 @@ repositories {
 }
 
 dependencies {
-    implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk8")
+    implementation("org.jetbrains.kotlin:kotlin-stdlib-jdk9")
     implementation("io.ktor:ktor-client-gson:$ktor_version")
     implementation("io.ktor:ktor-client-jetty:$ktor_version")
     implementation("io.ktor:ktor-client-gson:$ktor_version")
