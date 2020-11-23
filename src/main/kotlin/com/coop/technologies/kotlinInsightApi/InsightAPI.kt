@@ -212,7 +212,7 @@ object InsightCloudApi {
                                 InsightReference(
                                     objectType = it.objectTypeAttribute?.referenceObjectType?.name
                                         ?: "",
-                                    objects = it.objectAttributeValues.map { it.referencedObject.id to it.referencedObject.label },
+                                    objects = it.objectAttributeValues.map { it.referencedObject!!.id to it.referencedObject.label },
                                     clazzToParse = it1 as Class<T>
                                 )
                             })
