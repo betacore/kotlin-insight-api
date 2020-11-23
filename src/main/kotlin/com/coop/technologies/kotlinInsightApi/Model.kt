@@ -103,7 +103,7 @@ data class ObjectTypeSchemaAttribute(
 
 data class InsightObjectEntries(
     val objectEntries: List<InsightObject>,
-    val pageSize: Int
+    val pageObjectSize: Int
 )
 
 data class InsightObject(
