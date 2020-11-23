@@ -155,7 +155,7 @@ data class InsightReference<A: InsightEntity>(
 data class ObjectAttributeValue(
     val value: Any?,
     val displayValude: Any?,
-    val referencedObject: ReferencedObject
+    val referencedObject: ReferencedObject?
 )
 
 data class ReferencedObject(
