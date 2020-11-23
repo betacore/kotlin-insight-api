@@ -79,7 +79,7 @@ object InsightFactory {
 data class ObjectTypeSchema(
     val id: Int,
     val name: String,
-    var attributes: List<ObjectTypeSchemaAttribute>
+    var attributes: List<ObjectTypeSchemaAttribute>?
 )
 
 data class ObjectEditItem(

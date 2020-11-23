@@ -369,6 +369,7 @@ object InsightCloudApi {
             } else listOf(field?.value<Any>(obj))
 
             schema.attributes
+                .orEmpty()
                 .firstOrNull { it.name == field.name.capitalize() }
                 ?.let {
                     ObjectEditItemAttribute(
