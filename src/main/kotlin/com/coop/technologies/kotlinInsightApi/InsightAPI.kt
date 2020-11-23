@@ -1,5 +1,6 @@
 package com.coop.technologies.kotlinInsightApi
 
+import com.alibaba.fastjson.JSON
 import com.google.gson.JsonParser
 import io.ktor.client.*
 import io.ktor.client.request.*
@@ -40,13 +41,13 @@ object InsightCloudApi {
     }
 
     suspend fun reloadSchema() {
-        val schemas = httpClient.get<List<ObjectTypeSchema>> {
+        val schemas = JSON.parseArray(httpClient.get<String> {
             url("$BASE_URL/rest/insight/1.0/objectschema/${schemaId}/objecttypes/flat")
-        }
+        }, ObjectTypeSchema::class.java)
         val fullSchemas = schemas.map {
-            val attributes = httpClient.get<List<ObjectTypeSchemaAttribute>> {
+            val attributes = JSON.parseArray(httpClient.get<String> {
                 url("$BASE_URL/rest/insight/1.0/objecttype/${it.id}/attributes")
-            }
+            }, ObjectTypeSchemaAttribute::class.java)
             it.attributes = attributes
             it
         }
@@ -80,16 +81,16 @@ object InsightCloudApi {
                 }&includeTypeAttributes=true&page=$page"
             )
         }
-        val result = httpClient.get<InsightObjectEntries> {
+        val result = JSON.parseObject(httpClient.get<String> {
             urlFun(1)
-        }
+        }, InsightObjectEntries::class.java)
         val remainingPages = if (result.pageSize > 1) {
             generateSequence(2) { s -> if (s < result.pageSize) s + 1 else null }
         } else emptySequence()
         val pageContents = remainingPages.toList().flatMap { page ->
-            httpClient.get<InsightObjectEntries> {
+            JSON.parseObject(httpClient.get<String> {
                 urlFun(page)
-            }.objectEntries
+            }, InsightObjectEntries::class.java).objectEntries
         }
 
         log.debug("Returning [${(result.objectEntries + pageContents).size}] objects for [${clazz.name}]")
@@ -119,7 +120,7 @@ object InsightCloudApi {
     private suspend fun resolveInsightReferences(objectType: String, ids: Set<Int>): List<InsightObject> {
         log.debug("Resolving references for objectType [$objectType]")
         val results = ids.chunked(50).map { idList ->
-            httpClient.get<InsightObjectEntries> {
+            JSON.parseObject(httpClient.get<String> {
                 url(
                     "$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&resultPerPage=${Int.MAX_VALUE}&iql=objectType=\"$objectType\" and objectId in (${
                         idList.joinToString(
@@ -127,7 +128,7 @@ object InsightCloudApi {
                         )
                     })&includeTypeAttributes=true"
                 )
-            }.objectEntries
+            }, InsightObjectEntries::class.java).objectEntries
         }
         log.debug("Resolved references for objectType [$objectType]")
         return results.flatten()
@@ -413,17 +414,17 @@ object InsightCloudApi {
     }
 
     suspend fun <T : InsightEntity> getHistory(obj: T): List<InsightHistoryItem> {
-        return httpClient.get<List<InsightHistoryItem>> {
+        return JSON.parseArray(httpClient.get<String> {
             url("$BASE_URL/rest/insight/1.0/object/${obj.id}/history")
             contentType(ContentType.Application.Json)
-        }
+        }, InsightHistoryItem::class.java)
     }
 
     suspend fun <T : InsightEntity> getAttachments(obj: T): List<InsightAttachment> {
-        return httpClient.get {
+        return JSON.parseArray(httpClient.get<String> {
             url("$BASE_URL/rest/insight/1.0/attachments/object/${obj.id}")
             contentType(ContentType.Application.Json)
-        }
+        }, InsightAttachment::class.java)
     }
 
     suspend fun downloadAttachment(obj: InsightAttachment): ByteArray {
