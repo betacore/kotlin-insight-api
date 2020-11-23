@@ -103,7 +103,7 @@ data class ObjectTypeSchemaAttribute(
 
 data class InsightObjectEntries(
     val objectEntries: List<InsightObject>,
-    val pageObjectSize: Int
+    val pageSize: Int
 )
 
 data class InsightObject(
@@ -142,8 +142,8 @@ data class InsightAttribute(
 data class ObjectTypeAttribute (
     val id: Int,
     val name: String,
-    val referenceObjectTypeId: Int,
-    val referenceObjectType: ObjectType
+    val referenceObjectTypeId: Int?,
+    val referenceObjectType: ObjectType?
 )
 
 data class InsightReference<A: InsightEntity>(

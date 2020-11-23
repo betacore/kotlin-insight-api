@@ -84,8 +84,8 @@ object InsightCloudApi {
         val result = JSON.parseObject(httpClient.get<String> {
             urlFun(1)
         }, InsightObjectEntries::class.java)
-        val remainingPages = if (result.pageObjectSize > 1) {
-            generateSequence(2) { s -> if (s < result.pageObjectSize) s + 1 else null }
+        val remainingPages = if (result.pageSize > 1) {
+            generateSequence(2) { s -> if (s < result.pageSize) s + 1 else null }
         } else emptySequence()
         val pageContents = remainingPages.toList().flatMap { page ->
             JSON.parseObject(httpClient.get<String> {
