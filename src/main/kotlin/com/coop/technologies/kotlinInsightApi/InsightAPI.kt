@@ -76,7 +76,7 @@ object InsightCloudApi {
         val objectName = mapping.get(clazz) ?: ""
         val urlFun: HttpRequestBuilder.(Int) -> Unit = { page: Int ->
             url(
-                "$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&resultPerPage=${pageSize}&iql=objectType=\"$objectName\"${
+                "$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&resultPerPage=${pageSize}&iql=objectType in objectTypeAndChildren(\"$objectName\")${
                     iql?.let { " and $it" }.orEmpty()
                 }&includeTypeAttributes=true&page=$page"
             )
@@ -122,7 +122,7 @@ object InsightCloudApi {
         val results = ids.chunked(50).map { idList ->
             JSON.parseObject(httpClient.get<String> {
                 url(
-                    "$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&resultPerPage=${Int.MAX_VALUE}&iql=objectType=\"$objectType\" and objectId in (${
+                    "$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&resultPerPage=${Int.MAX_VALUE}&iql=objectType in objectTypeAndChildren(\"$objectType\") and objectId in (${
                         idList.joinToString(
                             ","
                         )
