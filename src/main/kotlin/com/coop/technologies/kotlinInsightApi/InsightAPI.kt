@@ -23,13 +23,15 @@ object InsightCloudApi {
     val mapping: MutableMap<Class<out InsightEntity>, String> = mutableMapOf()
     var pageSize: Int = 50
     var objectSchemas: List<ObjectTypeSchema> = emptyList()
+    var ignoreSubtypes: Boolean = false
     var httpClient: HttpClient = httpClient("", "")
 
     // One Time Initialization
-    fun init(schemaId: Int, url: String, username: String, password: String, pageSize: Int = 50) {
+    fun init(schemaId: Int, url: String, username: String, password: String, pageSize: Int = 50, ignoreSubtypes: Boolean = false) {
         this.pageSize = pageSize
         this.BASE_URL = url
         this.schemaId = schemaId
+        this.ignoreSubtypes = ignoreSubtypes
         this.httpClient = httpClient(username, password)
         runBlocking {
             reloadSchema()
@@ -75,11 +77,19 @@ object InsightCloudApi {
         log.debug("Getting objects for [${clazz.name}] with [$iql]")
         val objectName = mapping.get(clazz) ?: ""
         val urlFun: HttpRequestBuilder.(Int) -> Unit = { page: Int ->
-            url(
-                "$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&resultPerPage=${pageSize}&iql=objectType in objectTypeAndChildren(\"$objectName\")${
-                    iql?.let { " and $it" }.orEmpty()
-                }&includeTypeAttributes=true&page=$page"
-            )
+            if (ignoreSubtypes){
+                url(
+                    "$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&resultPerPage=${pageSize}&iql=objectType=\"$objectName\"${
+                        iql?.let { " and $it" }.orEmpty()
+                    }&includeTypeAttributes=true&page=$page"
+                )
+            } else {
+                url(
+                    "$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&resultPerPage=${pageSize}&iql=objectType in objectTypeAndChildren(\"$objectName\")${
+                        iql?.let { " and $it" }.orEmpty()
+                    }&includeTypeAttributes=true&page=$page"
+                )
+            }
         }
         val result = JSON.parseObject(httpClient.get<String> {
             urlFun(1)
@@ -121,13 +131,23 @@ object InsightCloudApi {
         log.debug("Resolving references for objectType [$objectType]")
         val results = ids.chunked(50).map { idList ->
             JSON.parseObject(httpClient.get<String> {
-                url(
-                    "$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&resultPerPage=${Int.MAX_VALUE}&iql=objectType in objectTypeAndChildren(\"$objectType\") and objectId in (${
-                        idList.joinToString(
-                            ","
-                        )
-                    })&includeTypeAttributes=true"
-                )
+                if (ignoreSubtypes) {
+                    url(
+                        "$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&resultPerPage=${Int.MAX_VALUE}&iql=objectType=\"$objectType\" and objectId in (${
+                            idList.joinToString(
+                                ","
+                            )
+                        })&includeTypeAttributes=true"
+                    )
+                } else {
+                    url(
+                        "$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&resultPerPage=${Int.MAX_VALUE}&iql=objectType in objectTypeAndChildren(\"$objectType\") and objectId in (${
+                            idList.joinToString(
+                                ","
+                            )
+                        })&includeTypeAttributes=true"
+                    )
+                }
             }, InsightObjectEntries::class.java).objectEntries
         }
         log.debug("Resolved references for objectType [$objectType]")
