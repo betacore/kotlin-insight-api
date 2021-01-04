@@ -79,7 +79,7 @@ object InsightFactory {
 data class ObjectTypeSchema(
     val id: Int,
     val name: String,
-    var attributes: List<ObjectTypeSchemaAttribute>
+    var attributes: List<ObjectTypeSchemaAttribute>?
 )
 
 data class ObjectEditItem(
@@ -102,7 +102,8 @@ data class ObjectTypeSchemaAttribute(
 )
 
 data class InsightObjectEntries(
-    val objectEntries: List<InsightObject>
+    val objectEntries: List<InsightObject>,
+    val pageSize: Int
 )
 
 data class InsightObject(
@@ -141,8 +142,8 @@ data class InsightAttribute(
 data class ObjectTypeAttribute (
     val id: Int,
     val name: String,
-    val referenceObjectTypeId: Int,
-    val referenceObjectType: ObjectType
+    val referenceObjectTypeId: Int?,
+    val referenceObjectType: ObjectType?
 )
 
 data class InsightReference<A: InsightEntity>(
@@ -154,7 +155,7 @@ data class InsightReference<A: InsightEntity>(
 data class ObjectAttributeValue(
     val value: Any?,
     val displayValude: Any?,
-    val referencedObject: ReferencedObject
+    val referencedObject: ReferencedObject?
 )
 
 data class ReferencedObject(

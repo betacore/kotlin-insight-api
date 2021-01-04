@@ -1,5 +1,6 @@
 package com.coop.technologies.kotlinInsightApi
 
+import com.alibaba.fastjson.JSON
 import com.google.gson.JsonParser
 import io.ktor.client.*
 import io.ktor.client.request.*
@@ -20,13 +21,17 @@ object InsightCloudApi {
     private var BASE_URL = "https://insight-api.riada.io"
     private var schemaId: Int = -1
     val mapping: MutableMap<Class<out InsightEntity>, String> = mutableMapOf()
+    var pageSize: Int = 50
     var objectSchemas: List<ObjectTypeSchema> = emptyList()
+    var ignoreSubtypes: Boolean = false
     var httpClient: HttpClient = httpClient("", "")
 
     // One Time Initialization
-    fun init(schemaId: Int, url: String, username: String, password: String) {
+    fun init(schemaId: Int, url: String, username: String, password: String, pageSize: Int = 50, ignoreSubtypes: Boolean = false) {
+        this.pageSize = pageSize
         this.BASE_URL = url
         this.schemaId = schemaId
+        this.ignoreSubtypes = ignoreSubtypes
         this.httpClient = httpClient(username, password)
         runBlocking {
             reloadSchema()
@@ -38,13 +43,13 @@ object InsightCloudApi {
     }
 
     suspend fun reloadSchema() {
-        val schemas = httpClient.get<List<ObjectTypeSchema>> {
+        val schemas = JSON.parseArray(httpClient.get<String> {
             url("$BASE_URL/rest/insight/1.0/objectschema/${schemaId}/objecttypes/flat")
-        }
+        }, ObjectTypeSchema::class.java)
         val fullSchemas = schemas.map {
-            val attributes = httpClient.get<List<ObjectTypeSchemaAttribute>> {
+            val attributes = JSON.parseArray(httpClient.get<String> {
                 url("$BASE_URL/rest/insight/1.0/objecttype/${it.id}/attributes")
-            }
+            }, ObjectTypeSchemaAttribute::class.java)
             it.attributes = attributes
             it
         }
@@ -52,37 +57,54 @@ object InsightCloudApi {
     }
 
     suspend fun <T : InsightEntity> getObjectsRaw(clazz: Class<T>): List<InsightObject> {
-        val objectName = mapping.get(clazz) ?: ""
-        return httpClient.get<InsightObjectEntries> {
-            url("$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&resultPerPage=${Int.MAX_VALUE}&iql=objectType=\"$objectName\"&includeTypeAttributes=true")
-        }.objectEntries
+        return getObjectsRawByIQL(clazz, null)
     }
 
     suspend fun <T : InsightEntity> getObjectRaw(clazz: Class<T>, id: Int): InsightObject? {
-        val objectName = mapping.get(clazz) ?: ""
-        return httpClient.get<InsightObjectEntries> {
-            url("$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&resultPerPage=${Int.MAX_VALUE}&iql=objectType=\"$objectName\" and objectId=$id&includeTypeAttributes=true")
-        }.objectEntries.firstOrNull()
+        val iql = "objectId=$id"
+        return getObjectsRawByIQL(clazz, iql).firstOrNull()
     }
 
-    suspend fun <T : InsightEntity> getObjectRawByName(
-        clazz: Class<T>,
-        name: String
-    ): InsightObject? {
-        val objectName = mapping.get(clazz) ?: ""
-        return httpClient.get<InsightObjectEntries> {
-            url("$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&resultPerPage=${Int.MAX_VALUE}&iql=objectType=\"$objectName\" and Name=\"$name\"&includeTypeAttributes=true")
-        }.objectEntries.firstOrNull()
+    suspend fun <T : InsightEntity> getObjectRawByName(clazz: Class<T>, name: String): InsightObject? {
+        val iql = "Name=\"$name\""
+        return getObjectsRawByIQL(clazz, iql).firstOrNull()
     }
 
     suspend fun <T : InsightEntity> getObjectsRawByIQL(
         clazz: Class<T>,
-        iql: String
+        iql: String?
     ): List<InsightObject> {
+        log.debug("Getting objects for [${clazz.name}] with [$iql]")
         val objectName = mapping.get(clazz) ?: ""
-        return httpClient.get<InsightObjectEntries> {
-            url("$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&resultPerPage=${Int.MAX_VALUE}&iql=objectType=\"$objectName\" and $iql&includeTypeAttributes=true")
-        }.objectEntries
+        val urlFun: HttpRequestBuilder.(Int) -> Unit = { page: Int ->
+            if (ignoreSubtypes){
+                url(
+                    "$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&resultPerPage=${pageSize}&iql=objectType=\"$objectName\"${
+                        iql?.let { " and $it" }.orEmpty()
+                    }&includeTypeAttributes=true&page=$page"
+                )
+            } else {
+                url(
+                    "$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&resultPerPage=${pageSize}&iql=objectType in objectTypeAndChildren(\"$objectName\")${
+                        iql?.let { " and $it" }.orEmpty()
+                    }&includeTypeAttributes=true&page=$page"
+                )
+            }
+        }
+        val result = JSON.parseObject(httpClient.get<String> {
+            urlFun(1)
+        }, InsightObjectEntries::class.java)
+        val remainingPages = if (result.pageSize > 1) {
+            generateSequence(2) { s -> if (s < result.pageSize) s + 1 else null }
+        } else emptySequence()
+        val pageContents = remainingPages.toList().flatMap { page ->
+            JSON.parseObject(httpClient.get<String> {
+                urlFun(page)
+            }, InsightObjectEntries::class.java).objectEntries
+        }
+
+        log.debug("Returning [${(result.objectEntries + pageContents).size}] objects for [${clazz.name}]")
+        return result.objectEntries + pageContents
     }
 
     suspend fun <T : InsightEntity> getObjects(clazz: Class<T>): List<T> {
@@ -106,17 +128,29 @@ object InsightCloudApi {
     }
 
     private suspend fun resolveInsightReferences(objectType: String, ids: Set<Int>): List<InsightObject> {
+        log.debug("Resolving references for objectType [$objectType]")
         val results = ids.chunked(50).map { idList ->
-            httpClient.get<InsightObjectEntries> {
-                url(
-                    "$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&resultPerPage=${Int.MAX_VALUE}&iql=objectType=\"$objectType\" and objectId in (${
-                        idList.joinToString(
-                            ","
-                        )
-                    })&includeTypeAttributes=true"
-                )
-            }.objectEntries
+            JSON.parseObject(httpClient.get<String> {
+                if (ignoreSubtypes) {
+                    url(
+                        "$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&resultPerPage=${Int.MAX_VALUE}&iql=objectType=\"$objectType\" and objectId in (${
+                            idList.joinToString(
+                                ","
+                            )
+                        })&includeTypeAttributes=true"
+                    )
+                } else {
+                    url(
+                        "$BASE_URL/rest/insight/1.0/iql/objects?objectSchemaId=$schemaId&resultPerPage=${Int.MAX_VALUE}&iql=objectType in objectTypeAndChildren(\"$objectType\") and objectId in (${
+                            idList.joinToString(
+                                ","
+                            )
+                        })&includeTypeAttributes=true"
+                    )
+                }
+            }, InsightObjectEntries::class.java).objectEntries
         }
+        log.debug("Resolved references for objectType [$objectType]")
         return results.flatten()
     }
 
@@ -124,6 +158,7 @@ object InsightCloudApi {
         clazz: Class<T>,
         objs: List<InsightObject>
     ): List<T> {
+        log.debug("Collecting references for objects of type [${clazz.name}]")
         val refs = buildReferenceMap(objs, clazz)
             .mapNotNull { (field, ref) ->
                 when (ref?.clazzToParse) {
@@ -159,8 +194,9 @@ object InsightCloudApi {
                 }
             }.toMap()
 
-
+        log.debug("Parsing objects of type [${clazz.name}]")
         return objs.map { obj ->
+            log.trace("Parsing object [${obj.label}]")
             val references = buildReferenceMap(listOf(obj), clazz)
             val fieldsMap = clazz.declaredFields.map {
                 it.name.capitalize() to it.type
@@ -181,6 +217,7 @@ object InsightCloudApi {
         objs: List<InsightObject>,
         clazz: Class<T>
     ): Map<String?, InsightReference<T>?> {
+        log.trace("Building reference map for [${clazz.name}]")
         return objs.map { obj ->
             val fieldsMap = clazz.declaredFields.map {
                 it.name.capitalize() to it.type
@@ -195,7 +232,7 @@ object InsightCloudApi {
                                 InsightReference(
                                     objectType = it.objectTypeAttribute?.referenceObjectType?.name
                                         ?: "",
-                                    objects = it.objectAttributeValues.map { it.referencedObject.id to it.referencedObject.label },
+                                    objects = it.objectAttributeValues.map { it.referencedObject!!.id to it.referencedObject.label },
                                     clazzToParse = it1 as Class<T>
                                 )
                             })
@@ -230,10 +267,12 @@ object InsightCloudApi {
                 val reference = references[parameter.name?.capitalize()]
                 val definedClass = fields[parameter.name?.capitalize()]
                 val result = when {
-                    definedClass == Int::class.java -> value.toString().toInt()
-                    definedClass == Float::class.java -> value.toString().toFloat()
-                    definedClass == Double::class.java -> value.toString().toDouble()
-                    definedClass == Boolean::class.java -> value.toString().toBoolean()
+                    definedClass == Int::class.java -> value?.toString()?.toInt()
+                    definedClass == java.lang.Float::class.java -> value?.toString()?.toFloat()
+                    definedClass == Float::class.java -> value?.toString()?.toFloat()
+                    definedClass == Double::class.java -> value?.toString()?.toDouble()
+                    definedClass == java.lang.Boolean::class.java -> value?.toString()?.toBoolean()
+                    definedClass == Boolean::class.java -> value?.toString()?.toBoolean()
                     definedClass == String::class.java -> {
                         try {
                             value as String?
@@ -284,11 +323,13 @@ object InsightCloudApi {
                 (parameter to result)
             }?.toMap()
             ?.let {
+                log.trace("Calling primary constructor of ${clazz.name} with parameters ${it}")
                 kobj.primaryConstructor?.callBy(it) as T
             }?.apply {
                 this.id = values["Id"] as Int
                 this.key = values["Key"] as String
             } ?: throw RuntimeException("Object ${clazz.name} could not be loaded")
+        log.trace("Successfully parsed object [${result.key}]")
         return result
     }
 
@@ -314,7 +355,7 @@ object InsightCloudApi {
             it as KProperty1<Any, *>
         }.filter {
             val newObj = it.get(obj)
-            newObj?. let { Class.forName(it.javaClass.name).superclass == InsightEntity::class.java } == true
+            newObj?.let { Class.forName(it.javaClass.name).superclass == InsightEntity::class.java } == true
         }.onEach {
             val item = it.get(obj) as T
             //getObjectRaw(it.second::class.java)
@@ -348,9 +389,12 @@ object InsightCloudApi {
             } else listOf(field?.value<Any>(obj))
 
             schema.attributes
+                .orEmpty()
                 .firstOrNull { it.name == field.name.capitalize() }
                 ?.let {
-                    ObjectEditItemAttribute(it.id, values.orEmpty().mapNotNull { item -> ObjectEditItemAttributeValue(item)})
+                    ObjectEditItemAttribute(
+                        it.id,
+                        values.orEmpty().mapNotNull { item -> ObjectEditItemAttributeValue(item) })
                 }
         }.filterNotNull()
         log.debug("ParsedObject: [$attributes]")
@@ -391,17 +435,17 @@ object InsightCloudApi {
     }
 
     suspend fun <T : InsightEntity> getHistory(obj: T): List<InsightHistoryItem> {
-        return httpClient.get<List<InsightHistoryItem>> {
+        return JSON.parseArray(httpClient.get<String> {
             url("$BASE_URL/rest/insight/1.0/object/${obj.id}/history")
             contentType(ContentType.Application.Json)
-        }
+        }, InsightHistoryItem::class.java)
     }
 
     suspend fun <T : InsightEntity> getAttachments(obj: T): List<InsightAttachment> {
-        return httpClient.get {
+        return JSON.parseArray(httpClient.get<String> {
             url("$BASE_URL/rest/insight/1.0/attachments/object/${obj.id}")
             contentType(ContentType.Application.Json)
-        }
+        }, InsightAttachment::class.java)
     }
 
     suspend fun downloadAttachment(obj: InsightAttachment): ByteArray {
