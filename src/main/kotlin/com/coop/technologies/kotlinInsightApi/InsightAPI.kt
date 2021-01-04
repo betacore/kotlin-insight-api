@@ -190,13 +190,13 @@ object InsightCloudApi {
     @KtorExperimentalAPI
     private suspend fun <T : InsightEntity> parseInsightObjectsToClass(
         clazz: KClass<T>,
-        objs: List<InsightObject>
+        objects: List<InsightObject>
     ): List<T> {
         log.debug("Collecting references for objects of type [${clazz.simpleName}]")
-        val refs = buildReferenceMap(objs, clazz).resolveReferences(clazz)
+        val refs = buildReferenceMap(objects, clazz).resolveReferences(clazz)
 
         log.debug("Parsing objects of type [${clazz.simpleName}]")
-        return objs.map { obj ->
+        return objects.map { obj ->
             log.trace("Parsing object [${obj.label}]")
             val references = buildReferenceMap(listOf(obj), clazz)
             val fieldsMap = clazz.declaredMemberProperties.map {
@@ -342,7 +342,7 @@ object InsightCloudApi {
     ): T {
         val result = clazz.primaryConstructor
             ?.parameters
-            ?.map { parameter ->
+            ?.map { parameter -> // Construct map from parameter to its' value
                 var value = values[parameter.name?.capitalize()]
                 val reference = references[parameter.name?.capitalize()]
                 val definedClass = fields[parameter.name?.capitalize()]
