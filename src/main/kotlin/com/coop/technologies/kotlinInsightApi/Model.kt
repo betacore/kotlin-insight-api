@@ -2,6 +2,7 @@ package com.coop.technologies.kotlinInsightApi
 
 import java.io.File
 import java.util.Collections.emptyList
+import kotlin.reflect.KClass
 
 data class EntityList<T>(
     val entities: List<T>
@@ -60,19 +61,19 @@ abstract class InsightEntity {
 
 object InsightFactory {
     suspend inline fun <reified T: InsightEntity> findAll(): List<T> {
-        return InsightCloudApi.getObjects(T::class.java)
+        return InsightCloudApi.getObjects(T::class)
     }
 
     suspend inline fun <reified T: InsightEntity> findById(id: Int): T? {
-        return InsightCloudApi.getObject(T::class.java, id)
+        return InsightCloudApi.getObject(T::class, id)
     }
 
     suspend inline fun <reified T: InsightEntity> findByName(name: String): T? {
-        return InsightCloudApi.getObjectByName(T::class.java, name)
+        return InsightCloudApi.getObjectByName(T::class, name)
     }
 
     suspend inline fun <reified T: InsightEntity> findByIQL(iql: String): List<T> {
-        return InsightCloudApi.getObjectByIQL(T::class.java, iql)
+        return InsightCloudApi.getObjectByIQL(T::class, iql)
     }
 }
 
@@ -149,12 +150,12 @@ data class ObjectTypeAttribute (
 data class InsightReference<A: InsightEntity>(
     val objectType: String,
     val objects: List<Pair<Int,String>>,
-    val clazzToParse: Class<A>
+    val clazzToParse: KClass<A>
 )
 
 data class ObjectAttributeValue(
     val value: Any?,
-    val displayValude: Any?,
+    val displayValue: Any?,
     val referencedObject: ReferencedObject?
 )
 
