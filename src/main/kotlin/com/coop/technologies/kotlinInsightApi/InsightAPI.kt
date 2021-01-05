@@ -107,8 +107,8 @@ object InsightCloudApi {
         } else emptySequence()
 
         val pageContents = remainingPages.toList().flatMap { page ->
-            val (_,body) = urlFun(page).httpGet()
-            JSON.parseObject(body, InsightObjectEntries::class.java).objectEntries
+            val (_, pageBody) = urlFun(page).httpGet()
+            JSON.parseObject(pageBody, InsightObjectEntries::class.java).objectEntries
         }
 
         log.debug("Returning [${(result.objectEntries + pageContents).size}] objects for [${clazz.simpleName}]")
@@ -341,6 +341,7 @@ object InsightCloudApi {
                             }
                         }
                     }
+
                     value.isReference(reference == null) -> {
                         val referenceObjects = referencedObjects[parameter.name?.capitalize()]
                         val insightObjects = reference?.objects?.map { it.first }
@@ -352,9 +353,8 @@ object InsightCloudApi {
                     }
 
                     definedClass != null && value == null && reference == null -> null // null remains null
-                    else -> {
-                        throw NotImplementedError("cls: $definedClass - value: $value - reference: $reference")
-                    }
+
+                    else -> throw NotImplementedError("cls: $definedClass - value: $value - reference: $reference")
                 }
                 (parameter to result)
             }?.toMap()
@@ -375,7 +375,7 @@ object InsightCloudApi {
         val resolvedObj = resolveReferences(obj)
 
         val editItem = parseObjectToObjectTypeAttributes(resolvedObj, schema)
-        val (status, body) = createObject.httpPost(editItem)
+        val (_, body) = createObject.httpPost(editItem)
         val jsonObject = JSON.parseObject(body)
         obj.id = jsonObject.getIntValue("id")
         obj.key = jsonObject.getString("objectKey")
@@ -450,7 +450,7 @@ object InsightCloudApi {
         val resolvedObj = resolveReferences(obj)
 
         val editItem = parseObjectToObjectTypeAttributes(resolvedObj, schema)
-        val (status, body) = objectById(obj.id).httpPut(editItem)
+        val (_, body) = objectById(obj.id).httpPut(editItem)
         val jsonObject = JsonParser.parseString(body).asJsonObject
         obj.id = jsonObject.get("id").asInt
         obj.key = jsonObject.get("objectKey").asString
