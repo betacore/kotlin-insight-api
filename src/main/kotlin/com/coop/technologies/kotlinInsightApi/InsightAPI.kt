@@ -459,13 +459,13 @@ object InsightCloudApi {
 
 
     suspend fun <T : InsightEntity> getHistory(obj: T): MutableList<InsightHistoryItem> {
-        val (status, body) = objectHistoryById(obj.id).httpGet()
+        val (_, body) = objectHistoryById(obj.id).httpGet()
         return JSON.parseArray(body, InsightHistoryItem::class.java)
     }
 
 
     suspend fun <T : InsightEntity> getAttachments(obj: T): MutableList<InsightAttachment> {
-        val (status, body) = attachmentByObjectId(obj.id).httpGet()
+        val (_, body) = attachmentByObjectId(obj.id).httpGet()
         return JSON.parseArray(body, InsightAttachment::class.java)
     }
 
@@ -510,18 +510,7 @@ object InsightCloudApi {
         return attachmentById(attachment.id).httpDelete()
     }
 
-    private val objectUrl: String
-        get() = "$BASE_URL/rest/insight/1.0/iql/objects"
-
-    private val objectSchemaUrl: String
-        get() = "$BASE_URL/rest/insight/1.0/objectschema"
-
-    private val objectTypeUrl: String
-        get() = "$BASE_URL/rest/insight/1.0/objecttype"
-
-
     private val basePath = listOf("rest", "insight", "1.0")
-
     private val createComment = Endpoint(basePath + listOf("comment", "create"))
     private val createObject = Endpoint(basePath + listOf("object", "create"))
 
