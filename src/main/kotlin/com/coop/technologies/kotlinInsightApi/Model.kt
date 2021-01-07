@@ -1,101 +1,89 @@
 package com.coop.technologies.kotlinInsightApi
 
+import io.ktor.client.*
 import java.util.Collections.emptyList
 import kotlin.reflect.KClass
 
-// sealed class Either<out A, out B> {
-//     data class Left<A,B>(val a: A): Either<A,B>()
-//     data class Right<A,B>(val b: B): Either<A,B>()
-// }
-//
-// fun <A,B,C> Either<A,B>.map(f: (B)->C): Either<A,C> =
-//     when(this) {
-//         is Either.Left -> Either.Left(this.a)
-//         is Either.Right -> Either.Right(f(this.b))
-//     }
-//
-// fun <A,B,C> Either<A,B>.bind(f: (B)->Either<A,C>): Either<A,C> =
-//     when(this) {
-//         is Either.Left -> Either.Left(this.a)
-//         is Either.Right -> f(this.b)
-//     }
-//
-// sealed class HttpError {
-//     object BadRequest : HttpError()
-//     object ServerError : HttpError()
-//     object UnknownError : HttpError()
-// }
+data class ExecutionEnvironment(
+    val baseUrl: String,
+    val schemaId: Int,
+    val mapping: Map<KClass<out InsightEntity>, String>,
+    val pageSize: Int,
+    val ignoreSubtypes: Boolean,
+    val objectSchemas: List<ObjectTypeSchema>,
+    val httpClient: HttpClient
+)
 
 data class Endpoint(
     val path: List<String>,
-    val queryParams: Map<String,String> = emptyMap()
+    val queryParams: Map<String, String> = emptyMap()
 )
 
 fun Endpoint.toUrl(baseUrl: String): String =
-    "$baseUrl/${path.joinToString("/")}?${queryParams.map { (k,v) -> "$k=$v" }.joinToString("&")}"
+    "$baseUrl/${path.joinToString("/")}?${queryParams.map { (k, v) -> "$k=$v" }.joinToString("&")}"
 
 open class InsightEntity(
     var id: Int = -1,
     var key: String = "",
-    val name: String = ""
+    open val name: String = ""
 ) {
-    suspend fun save() {
+    suspend fun save(environment: ExecutionEnvironment) {
         if (id == -1) {
-            InsightCloudApi.createObject(this)
+            environment.createObject(this)
         } else {
-            InsightCloudApi.updateObject(this)
+            environment.updateObject(this)
         }
     }
 
-    suspend fun delete(): Boolean {
+    suspend fun delete(environment: ExecutionEnvironment): Boolean {
         if (id == -1) {
             return false
         }
-        InsightCloudApi.deleteObject(id)
+        environment.deleteObject(id)
         return true
     }
 
-    suspend fun getHistory(): List<InsightHistoryItem> {
+    suspend fun getHistory(environment: ExecutionEnvironment): List<InsightHistoryItem> {
         if (id == -1) {
             return emptyList()
         }
-        return InsightCloudApi.getHistory(this)
+        return environment.getHistory(this)
     }
 
-    suspend fun getAttachments(): List<InsightAttachment> {
+    suspend fun getAttachments(environment: ExecutionEnvironment): List<InsightAttachment> {
         if (id == -1) {
             return emptyList()
         }
-        return InsightCloudApi.getAttachments(this)
+        return environment.getAttachments(this)
     }
 
-    suspend fun comment(message: String) {
+    suspend fun comment(message: String, environment: ExecutionEnvironment) {
         if (id != -1) {
-            InsightCloudApi.createComment(this.id, message)
+            environment.createComment(this.id, message)
         }
     }
 
-    suspend fun addAttachment(filename: String, byteArray: ByteArray, comment: String = ""): InsightAttachment {
-        return InsightCloudApi.uploadAttachment(this, filename, byteArray, comment).first()
+    suspend fun addAttachment(filename: String, byteArray: ByteArray, comment: String = "", environment: ExecutionEnvironment): InsightAttachment {
+        return environment.uploadAttachment(this, filename, byteArray, comment).first()
     }
 }
 
 
 object InsightFactory {
-    suspend inline fun <reified T : InsightEntity> findAll(): List<T> {
-        return InsightCloudApi.getObjects(T::class)
+    suspend inline fun <reified T : InsightEntity> findAll(environment: ExecutionEnvironment): List<T> {
+        return environment.getObjects(T::class)
     }
 
-    suspend inline fun <reified T : InsightEntity> findById(id: Int): T? {
-        return InsightCloudApi.getObject(T::class, id)
+    suspend inline fun <reified T : InsightEntity> findById(id: Int, environment: ExecutionEnvironment): T? {
+        return environment.getObject(T::class, id)
     }
 
-    suspend inline fun <reified T : InsightEntity> findByName(name: String): T? {
-        return InsightCloudApi.getObjectByName(T::class, name)
+    suspend inline fun <reified T : InsightEntity> findByName(name: String, environment: ExecutionEnvironment): T? {
+        return environment.getObjectByName(T::class, name)
     }
 
-    suspend inline fun <reified T : InsightEntity> findByIQL(iql: String): List<T> {
-        return InsightCloudApi.getObjectByIQL(T::class, iql)
+    suspend inline fun <reified T : InsightEntity> findByIQL(iql: String, environment: ExecutionEnvironment): List<T> {
+        return environment.getObjectByIQL(T::class, iql)
     }
 }
 
@@ -209,16 +197,15 @@ data class InsightAttachment(
     val url: String
 ) {
 
-    suspend fun getBytes(): ByteArray {
-        return InsightCloudApi.downloadAttachment(this)
+    suspend fun getBytes(environment: ExecutionEnvironment): ByteArray {
+        return environment.downloadAttachment(this)
     }
 
-
-    suspend fun delete(): Boolean {
+    suspend fun delete(environment: ExecutionEnvironment): Boolean {
         if (id <= 0) {
             return false
         }
-        InsightCloudApi.deleteAttachment(this)
+        environment.deleteAttachment(this)
         return true
     }
 }

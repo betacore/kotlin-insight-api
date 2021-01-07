@@ -1,7 +1,7 @@
-import com.coop.technologies.kotlinInsightApi.InsightCloudApi
+import com.coop.technologies.kotlinInsightApi.ExecutionEnvironment
 import com.coop.technologies.kotlinInsightApi.InsightEntity
 import com.coop.technologies.kotlinInsightApi.InsightFactory
-import com.coop.technologies.kotlinInsightApi.InsightSimpleObject
+import com.coop.technologies.kotlinInsightApi.buildEnvironment
 import junit.framework.TestCase
 import kotlinx.coroutines.runBlocking
 import org.junit.Ignore
@@ -10,7 +10,7 @@ import java.security.MessageDigest
 
 data class Company(
     override var name: String,
-    val country: InsightSimpleObject
+    val country: InsightEntity
 ) : InsightEntity()
 
 data class Company2(
@@ -30,7 +30,7 @@ data class SimpleCountry(
 
 data class TestWithListsWithSimple(
     override var name: String,
-    val itemList: List<InsightSimpleObject>
+    val itemList: List<InsightEntity>
 ) : InsightEntity()
 
 data class TestWithListsObject(
@@ -46,25 +46,30 @@ data class SimpleObject(
 
 @Ignore
 class MainTest : TestCase() {
+    lateinit var environment: ExecutionEnvironment
 
     override fun setUp() {
         super.setUp()
         println("#### Starting setUp")
         //val config = ConfigFactory.parseResources("test.conf").resolve()
         //val authToken = config.getString("conf.authToken")
-        InsightCloudApi.init(1, "http://localhost:8080", "admin", "admin")
-        InsightCloudApi.registerClass(Company::class.java, "Company")
-        InsightCloudApi.registerClass(Company2::class.java, "Company")
-        InsightCloudApi.registerClass(Country::class.java, "Country")
-        InsightCloudApi.registerClass(SimpleCountry::class.java, "Country")
-        InsightCloudApi.registerClass(TestWithListsWithSimple::class.java, "TestWithLists")
-        InsightCloudApi.registerClass(TestWithListsObject::class.java, "TestWithLists")
-        InsightCloudApi.registerClass(SimpleObject::class.java, "SimpleObject")
+        val mapping = mapOf(
+            Company::class to "Company",
+            Company2::class to "Company",
+            Country::class to "Country",
+            SimpleCountry::class to "Country",
+            TestWithListsWithSimple::class to "TestWithLists",
+            TestWithListsObject::class to "TestWithLists",
+            SimpleObject::class to "SimpleObject"
+        )
+        environment = runBlocking {
+            buildEnvironment(1, "http://localhost:8080", "admin", "admin", mapping)
+        }
     }
 
     fun testObjectListWithFlatReference() {
         val companies = runBlocking {
-            InsightFactory.findAll<Company>()
+            InsightFactory.findAll<Company>(environment)
         }
         assertTrue(companies.size == 1)
         val company = companies.first()
@@ -75,7 +80,7 @@ class MainTest : TestCase() {
 
     fun testObjectListWithResolvedReference() {
         val companies = runBlocking {
-            InsightFactory.findAll<Company2>()
+            InsightFactory.findAll<Company2>(environment)
         }
         assertTrue(companies.size == 1)
         val company = companies.first()
@@ -87,7 +92,7 @@ class MainTest : TestCase() {
 
     fun testObjectById() {
         val company = runBlocking {
-            InsightFactory.findById<Company>(1)!!
+            InsightFactory.findById<Company>(1, environment)!!
         }
         assertTrue(company.id == 1)
         assertTrue(company.name == "Test GmbH")
@@ -95,45 +100,37 @@ class MainTest : TestCase() {
     }
 
     fun testObjectWithListAttributes() {
-        val withObject = runBlocking { InsightFactory.findAll<TestWithListsObject>() }.first()
+        val withObject = runBlocking { InsightFactory.findAll<TestWithListsObject>(environment) }.first()
         assertTrue(withObject.itemList.map { it.firstname } == listOf("F1", "F2", "F3"))
     }
 
     // Todo: Implement simple object resolution for list object references
     @Ignore
     fun testNamesWithListAttributes() {
-        val withStrings = runBlocking { InsightFactory.findAll<TestWithListsWithSimple>() }.first()
+        val withStrings = runBlocking { InsightFactory.findAll<TestWithListsWithSimple>(environment) }.first()
         assertTrue(withStrings.itemList.map { it.name } == listOf("Object1", "Object2", "Object3"))
     }
-
-    fun testSchemaLoad() {
-        runBlocking {
-            InsightCloudApi.reloadSchema()
-        }
-        val schemas = InsightCloudApi.objectSchemas
-    }
-
 
     fun testCreateAndDelete() {
         runBlocking {
             // Check England does not exist
-            val countryBeforeCreate = InsightFactory.findByName<Country>("England")
-            val companyBeforeCreate = InsightFactory.findByName<Company2>("MyTestCompany GmbH")
+            val countryBeforeCreate = InsightFactory.findByName<Country>("England", environment)
+            val companyBeforeCreate = InsightFactory.findByName<Company2>("MyTestCompany GmbH", environment)
             assertTrue(countryBeforeCreate == null)
             assertTrue(companyBeforeCreate == null)
 
             // Create and check direct result
             val country = Country("England", "GB")
             val company = Company2("MyTestCompany GmbH", country)
-            company.save()
+            company.save(environment)
             assertTrue(company.id > 0)
             assertTrue(company.key.isNotBlank())
             assertTrue(company.country.id > 0)
             assertTrue(company.country.key.isNotBlank())
 
             // Check England does exists
-            val countryAfterCreate = InsightFactory.findByName<Country>("England")
-            val companyAfterCreate = InsightFactory.findByName<Company2>("MyTestCompany GmbH")
+            val countryAfterCreate = InsightFactory.findByName<Country>("England", environment)
+            val companyAfterCreate = InsightFactory.findByName<Company2>("MyTestCompany GmbH", environment)
             assertTrue(countryAfterCreate!!.id == company.country.id)
             assertTrue(countryAfterCreate.key == company.country.key)
             assertTrue(countryAfterCreate.name == company.country.name)
@@ -143,10 +140,10 @@ class MainTest : TestCase() {
             assertTrue(companyAfterCreate.name == company.name)
 
             // Check Delete
-            company.country.delete()
-            company.delete()
-            val companyAfterDelete = InsightFactory.findById<Company2>(company.id)
-            val countryAfterDelete = InsightFactory.findById<Country>(company.country.id)
+            company.country.delete(environment)
+            company.delete(environment)
+            val companyAfterDelete = InsightFactory.findById<Company2>(company.id, environment)
+            val countryAfterDelete = InsightFactory.findById<Country>(company.country.id, environment)
             assertTrue(companyAfterDelete == null)
             assertTrue(countryAfterDelete == null)
         }
@@ -154,7 +151,7 @@ class MainTest : TestCase() {
 
     fun testFilter() {
         runBlocking {
-            val countries = InsightFactory.findByIQL<Country>("\"ShortName\"=\"DE\"")
+            val countries = InsightFactory.findByIQL<Country>("\"ShortName\"=\"DE\"", environment)
             assertTrue(countries.size == 1)
             assertTrue(countries.first().shortName == "DE")
             assertTrue(countries.first().name == "Germany")
@@ -163,22 +160,22 @@ class MainTest : TestCase() {
 
     fun testUpdate() {
         runBlocking {
-            val country = InsightFactory.findByName<Country>("Germany")
+            val country = InsightFactory.findByName<Country>("Germany", environment)
             assertTrue(country!!.name == "Germany")
             assertTrue(country.shortName == "DE")
             country.shortName = "ED"
 
-            country.save()
+            country.save(environment)
             assertTrue(country!!.name == "Germany")
             assertTrue(country.shortName == "ED")
 
-            val countryAfterUpdate = InsightFactory.findByName<Country>("Germany")
+            val countryAfterUpdate = InsightFactory.findByName<Country>("Germany", environment)
             assertTrue(countryAfterUpdate!!.name == "Germany")
             assertTrue(countryAfterUpdate.shortName == "ED")
             country.shortName = "DE"
-            country.save()
+            country.save(environment)
 
-            val countryAfterReUpdate = InsightFactory.findByName<Country>("Germany")
+            val countryAfterReUpdate = InsightFactory.findByName<Country>("Germany", environment)
             assertTrue(countryAfterReUpdate!!.name == "Germany")
             assertTrue(countryAfterReUpdate.shortName == "DE")
         }
@@ -186,31 +183,31 @@ class MainTest : TestCase() {
 
     fun testHistory() {
         runBlocking {
-            val country = InsightFactory.findByName<Country>("Germany")!!
-            val historyItems = country.getHistory()
+            val country = InsightFactory.findByName<Country>("Germany", environment)!!
+            val historyItems = country.getHistory(environment)
             assertTrue(historyItems.isNotEmpty())
         }
     }
 
     fun testAttachments() {
         runBlocking {
-            val country = InsightFactory.findByName<Country>("Germany")!!
+            val country = InsightFactory.findByName<Country>("Germany", environment)!!
             val uploadFile = File(MainTest::class.java.getResource("TestAttachment.pdf").file)
-            val newAttachment = country.addAttachment(uploadFile.name, uploadFile.readBytes(), "MyComment")
-            val attachments = country.getAttachments()
+            val newAttachment = country.addAttachment(uploadFile.name, uploadFile.readBytes(), "MyComment", environment)
+            val attachments = country.getAttachments(environment)
             assertTrue(attachments.size == 1)
             assertTrue(newAttachment.author == attachments.first()!!.author)
             assertTrue(newAttachment.comment == attachments.first().comment)
             assertTrue(newAttachment.filename == attachments.first().filename)
             assertTrue(newAttachment.filesize == attachments.first().filesize)
 
-            val downloadContent = attachments.first().getBytes()
+            val downloadContent = attachments.first().getBytes(environment)
             val md5Hash =
                 MessageDigest.getInstance("MD5").digest(downloadContent).joinToString("") { "%02x".format(it) }
             assertTrue(md5Hash == "3c2f34b03f483bee145a442a4574ca26")
 
-            val deleted = newAttachment.delete()
-            val attachmentsAfterDelete = country.getAttachments()
+            val deleted = newAttachment.delete(environment)
+            val attachmentsAfterDelete = country.getAttachments(environment)
             assertTrue(attachmentsAfterDelete.isEmpty())
         }
     }
