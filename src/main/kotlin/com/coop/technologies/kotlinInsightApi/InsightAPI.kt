@@ -12,6 +12,7 @@ import kotlinx.coroutines.runBlocking
 import org.slf4j.LoggerFactory
 import java.net.URLConnection
 import kotlin.reflect.KClass
+import kotlin.reflect.KParameter
 import kotlin.reflect.KProperty1
 import kotlin.reflect.full.declaredMemberProperties
 import kotlin.reflect.full.isSubclassOf
@@ -28,7 +29,6 @@ object InsightCloudApi {
     private var pageSize: Int = 50
     var objectSchemas: List<ObjectTypeSchema> = emptyList()
     private var ignoreSubtypes: Boolean = false
-
 
     var httpClient: HttpClient = httpClient("", "")
 
@@ -100,8 +100,9 @@ object InsightCloudApi {
                 page
             )
         }
-        val (_, body) = urlFun(1).httpGet()
-        val result = JSON.parseObject(body , InsightObjectEntries::class.java)
+
+        val (_, body) = urlFun(1).httpGet() // Get the first set of results
+        val result = JSON.parseObject(body, InsightObjectEntries::class.java)
         val remainingPages = if (result.pageSize > 1) {
             generateSequence(2) { s -> if (s < result.pageSize) s + 1 else null }
         } else emptySequence()
@@ -115,18 +116,15 @@ object InsightCloudApi {
         return result.objectEntries + pageContents
     }
 
-
     suspend fun <T : InsightEntity> getObjects(clazz: KClass<T>): List<T> {
         val objects = getObjectsRaw(clazz)
         return parseInsightObjectsToClass(clazz, objects)
     }
 
-
     suspend fun <T : InsightEntity> getObject(clazz: KClass<T>, id: Int): T? {
         val obj = getObjectRaw(clazz, id)
         return parseInsightObjectsToClass(clazz, listOfNotNull(obj)).firstOrNull()
     }
-
 
     suspend fun <T : InsightEntity> getObjectByName(clazz: KClass<T>, name: String): T? {
         val obj = getObjectRawByName(clazz, name)
@@ -137,6 +135,92 @@ object InsightCloudApi {
         val objects = getObjectsRawByIQL(clazz, iql)
         return parseInsightObjectsToClass(clazz, objects)
     }
+
+    suspend fun <T : InsightEntity> createObject(obj: T): T {
+        val schema = objectSchemas.first { it.name == mapping[obj::class] }
+        val resolvedObj = resolveReferences(obj)
+
+        val editItem = parseObjectToEditItem(resolvedObj, schema)
+        val (_, body) = createObject.httpPost(editItem)
+        val jsonObject = JSON.parseObject(body)
+        obj.id = jsonObject.getIntValue("id")
+        obj.key = jsonObject.getString("objectKey")
+        return obj
+    }
+
+    suspend fun deleteObject(id: Int): Pair<Int, String> {
+        return objectById(id).httpDelete()
+    }
+
+    suspend fun createComment(id: Int, message: String): Pair<Int, String> {
+        return createComment.httpPost(InsightCommentBody(id, message))
+    }
+
+    suspend fun <T : InsightEntity> updateObject(obj: T): T {
+        val schema = objectSchemas.first { it.name == mapping[obj::class] }
+        val resolvedObj = resolveReferences(obj)
+
+        val editItem = parseObjectToEditItem(resolvedObj, schema)
+        val (_, body) = objectById(obj.id).httpPut(editItem)
+        val jsonObject = JsonParser.parseString(body).asJsonObject
+        obj.id = jsonObject.get("id").asInt
+        obj.key = jsonObject.get("objectKey").asString
+        return obj
+    }
+
+
+    suspend fun <T : InsightEntity> getHistory(obj: T): MutableList<InsightHistoryItem> {
+        val (_, body) = objectHistoryById(obj.id).httpGet()
+        return JSON.parseArray(body, InsightHistoryItem::class.java)
+    }
+
+
+    suspend fun <T : InsightEntity> getAttachments(obj: T): MutableList<InsightAttachment> {
+        val (_, body) = attachmentByObjectId(obj.id).httpGet()
+        return JSON.parseArray(body, InsightAttachment::class.java)
+    }
+
+
+    suspend fun downloadAttachment(obj: InsightAttachment): ByteArray {
+        val url = obj.url
+        return httpClient.get { url(url) }
+    }
+
+    suspend fun <T : InsightEntity> uploadAttachment(
+        obj: T,
+        filename: String,
+        byteArray: ByteArray,
+        comment: String = ""
+    ): MutableList<InsightAttachment> {
+        val mimeType = URLConnection.guessContentTypeFromName(filename)
+        val body = MultiPartFormDataContent(
+            formData {
+                this.append(
+                    "file",
+                    byteArray,
+                    Headers.build {
+                        append(HttpHeaders.ContentType, mimeType)
+                        append(HttpHeaders.ContentDisposition, "filename=$filename")
+                    })
+                this.append(FormPart("encodedComment", comment))
+            }
+        )
+
+        attachmentByObjectId(obj.id).httpPost(
+            requestBody = body,
+            httpHeaders = mapOf(
+                "Connection" to "keep-alive",
+                "Cache-Control" to "no-cache"
+            )
+        )
+        return getAttachments(obj)
+    }
+
+
+    suspend fun deleteAttachment(attachment: InsightAttachment): Pair<Int, String> {
+        return attachmentById(attachment.id).httpDelete()
+    }
+
 
     private suspend fun resolveInsightReferences(objectType: String, ids: Set<Int>): List<InsightObject> {
         log.debug("Resolving references for objectType [$objectType]")
@@ -185,7 +269,7 @@ object InsightCloudApi {
     }
 
     @Suppress("UNCHECKED_CAST") // casting to superclass is always possible
-    private fun <T : Any, S : Any> KClass<T>.toSuperclass(superclass: KClass<S>): KClass<S> =
+    private fun <S : Any> KClass<*>.toSuperclass(superclass: KClass<S>): KClass<S> =
         if (this.isSubclassOf(superclass))
             this as KClass<S>
         else throw IllegalStateException("Not subclass of $superclass")
@@ -304,7 +388,6 @@ object InsightCloudApi {
             else -> IllegalStateException("Not a primitive")
         }
 
-
     private suspend fun <T : InsightEntity> parseObject(
         clazz: KClass<T>,
         fields: Map<String, KClass<out Any>>,
@@ -314,50 +397,7 @@ object InsightCloudApi {
     ): T {
         val result = clazz.primaryConstructor
             ?.parameters
-            ?.map { parameter -> // Construct map from parameter to its' value
-                var value = values[parameter.name?.capitalize()]
-                val reference = references[parameter.name?.capitalize()]
-                val definedClass = fields[parameter.name?.capitalize()]
-                val result = when {
-                    definedClass.isPrimitive() -> definedClass.transformPrimitive(value)
-
-                    definedClass.isList(reference == null) -> {
-                        val outClass =
-                            parameter.type.arguments.first().type?.jvmErasure
-                        if (value == null) {
-                            value = emptyList<String>()
-                        }
-                        when {
-                            outClass.isPrimitive() -> (value as List<Any?>).map { outClass.transformPrimitive(it) }
-                            else -> {
-                                if (mapping.keys.contains(outClass)) {
-                                    (value as List<InsightObject>).flatMap {
-                                        parseInsightObjectsToClass(
-                                            mapping.keys.first { key -> key == outClass },
-                                            listOf(it)
-                                        )
-                                    }
-                                } else TODO("Unknown outClass for List: ${outClass?.simpleName}")
-                            }
-                        }
-                    }
-
-                    value.isReference(reference == null) -> {
-                        val referenceObjects = referencedObjects[parameter.name?.capitalize()]
-                        val insightObjects = reference?.objects?.map { it.first }
-                        val intermediate = insightObjects?.flatMap { referenceId ->
-                            referenceObjects?.filter { it.id == referenceId }.orEmpty()
-                        }
-                        if (reference?.clazzToParse == List::class.java) intermediate
-                        else intermediate?.firstOrNull()
-                    }
-
-                    definedClass != null && value == null && reference == null -> null // null remains null
-
-                    else -> throw NotImplementedError("cls: $definedClass - value: $value - reference: $reference")
-                }
-                (parameter to result)
-            }?.toMap()
+            ?.map { pairParameterWithValue(values, references, fields, referencedObjects, it) }?.toMap()
             ?.let {
                 log.trace("Calling primary constructor of ${clazz.simpleName} with parameters $it")
                 clazz.primaryConstructor?.callBy(it) as T
@@ -369,32 +409,73 @@ object InsightCloudApi {
         return result
     }
 
-
-    suspend fun <T : InsightEntity> createObject(obj: T): T {
-        val schema = objectSchemas.first { it.name == mapping[obj::class] }
-        val resolvedObj = resolveReferences(obj)
-
-        val editItem = parseObjectToObjectTypeAttributes(resolvedObj, schema)
-        val (_, body) = createObject.httpPost(editItem)
-        val jsonObject = JSON.parseObject(body)
-        obj.id = jsonObject.getIntValue("id")
-        obj.key = jsonObject.getString("objectKey")
-        return obj
+    private suspend fun <T : InsightEntity> pairParameterWithValue(
+        values: Map<String?, Any?>,
+        references: Map<String?, InsightReference<T>?>,
+        fields: Map<String, KClass<out Any>>,
+        referencedObjects: Map<String?, List<InsightEntity>>,
+        parameter: KParameter
+    ): Pair<KParameter, Any?> {
+        val value = values[parameter.name?.capitalize()]
+        val reference = references[parameter.name?.capitalize()]
+        val definedClass = fields[parameter.name?.capitalize()]
+        val result = when {
+            definedClass.isPrimitive() -> definedClass.transformPrimitive(value)
+            definedClass.isList(reference == null) -> transformList(parameter, value)
+            value.isReference(reference == null) -> insertReferenced(referencedObjects, parameter, reference)
+            definedClass != null && value == null && reference == null -> null // null remains null
+            else -> throw NotImplementedError("cls: $definedClass - value: $value - reference: $reference")
+        }
+        return (parameter to result)
     }
 
+    private fun <T : InsightEntity> insertReferenced(
+        referencedObjects: Map<String?, List<InsightEntity>>,
+        parameter: KParameter,
+        reference: InsightReference<T>?
+    ): Any? {
+        val referenceObjects = referencedObjects[parameter.name?.capitalize()]
+        val insightObjects = reference?.objects?.map { it.first }
+        val intermediate = insightObjects?.flatMap { referenceId ->
+            referenceObjects?.filter { it.id == referenceId }.orEmpty()
+        }.orEmpty()
 
+        return if (reference?.clazzToParse == List::class.java) intermediate
+        else intermediate.firstOrNull()
+    }
+
+    private suspend fun transformList(
+        parameter: KParameter,
+        value: Any?
+    ): List<Any?> {
+        val outClass = parameter.type.arguments.first().type?.jvmErasure
+        return when {
+            outClass.isPrimitive() -> (value as List<Any?>?).orEmpty().map { outClass.transformPrimitive(it) }
+            else -> {
+                if (mapping.keys.contains(outClass))
+                    (value as List<InsightObject>?).orEmpty().flatMap {
+                        parseInsightObjectsToClass(
+                            mapping.keys.first { key -> key == outClass },
+                            listOf(it)
+                        )
+                    }
+                else TODO("Unknown outClass for List: ${outClass?.simpleName}")
+            }
+        }
+    }
+
+    /* Not sure if this actually does anything
+     */
     private suspend fun <T : InsightEntity> resolveReferences(obj: T): T {
         obj::class.memberProperties.map {
             it as KProperty1<Any, *>
         }.filter { property ->
-            val newObj = property.get(obj)
-            newObj?.javaClass?.kotlin?.isSubclassOf(InsightEntity::class) == true
+            property.get(obj)?.javaClass?.kotlin?.isSubclassOf(InsightEntity::class) == true
         }.onEach {
-            val item = it.get(obj) as T
-            //getObjectRaw(it.second::class.java)
+            val item = it.get(obj) as InsightEntity
             if (item.id == -1 || item.key.isBlank()) {
                 // get entity by name, if not exists create
-                val resolvedObject = getObjectByName(item.javaClass.kotlin, it.name) ?: createObject(item)
+                val resolvedObject = getObjectByName(item::class, it.name) ?: createObject(item)
                 item.id = resolvedObject.id
                 item.key = resolvedObject.key
             }
@@ -402,7 +483,7 @@ object InsightCloudApi {
         return obj
     }
 
-    private fun <T : InsightEntity> parseObjectToObjectTypeAttributes(
+    private fun <T : InsightEntity> parseObjectToEditItem(
         obj: T,
         schema: ObjectTypeSchema
     ): ObjectEditItem {
@@ -411,9 +492,11 @@ object InsightCloudApi {
 
         val attributes: List<ObjectEditItemAttribute> = obj::class.declaredMemberProperties.mapNotNull { property ->
             val values = when {
-                property.returnType.jvmErasure.isSubclassOf(InsightEntity::class) -> {
-                    listOf(property.value<InsightEntity>(obj)?.key)
-                }
+                property.returnType.jvmErasure.isSubclassOf(InsightEntity::class) -> listOf(
+                    property.value<InsightEntity>(
+                        obj
+                    )?.key
+                )
                 property.returnType.jvmErasure == List::class -> {
                     property.value<List<*>>(obj)?.mapNotNull { item ->
                         if (item!!::class.isSubclassOf(InsightEntity::class)) {
@@ -422,7 +505,7 @@ object InsightCloudApi {
                     }
                 }
                 else -> listOf(property.value<Any>(obj))
-            }
+            }.orEmpty()
 
             schema.attributes
                 .orEmpty()
@@ -430,84 +513,11 @@ object InsightCloudApi {
                 ?.let {
                     ObjectEditItemAttribute(
                         it.id,
-                        values.orEmpty().mapNotNull { item -> ObjectEditItemAttributeValue(item) })
+                        values.mapNotNull { item -> ObjectEditItemAttributeValue(item) })
                 }
         }
         log.debug("ParsedObject: [$attributes]")
         return ObjectEditItem(schema.id, attributes)
-    }
-
-    suspend fun deleteObject(id: Int): Pair<Int, String> {
-        return objectById(id).httpDelete()
-    }
-
-    suspend fun createComment(id: Int, message: String): Pair<Int, String> {
-        return createComment.httpPost(InsightCommentBody(id, message))
-    }
-
-    suspend fun <T : InsightEntity> updateObject(obj: T): T {
-        val schema = objectSchemas.first { it.name == mapping[obj::class] }
-        val resolvedObj = resolveReferences(obj)
-
-        val editItem = parseObjectToObjectTypeAttributes(resolvedObj, schema)
-        val (_, body) = objectById(obj.id).httpPut(editItem)
-        val jsonObject = JsonParser.parseString(body).asJsonObject
-        obj.id = jsonObject.get("id").asInt
-        obj.key = jsonObject.get("objectKey").asString
-        return obj
-    }
-
-
-    suspend fun <T : InsightEntity> getHistory(obj: T): MutableList<InsightHistoryItem> {
-        val (_, body) = objectHistoryById(obj.id).httpGet()
-        return JSON.parseArray(body, InsightHistoryItem::class.java)
-    }
-
-
-    suspend fun <T : InsightEntity> getAttachments(obj: T): MutableList<InsightAttachment> {
-        val (_, body) = attachmentByObjectId(obj.id).httpGet()
-        return JSON.parseArray(body, InsightAttachment::class.java)
-    }
-
-
-    suspend fun downloadAttachment(obj: InsightAttachment): ByteArray {
-        val url = obj.url
-        return httpClient.get { url(url) }
-    }
-
-    suspend fun <T : InsightEntity> uploadAttachment(
-        obj: T,
-        filename: String,
-        byteArray: ByteArray,
-        comment: String = ""
-    ): MutableList<InsightAttachment> {
-        val mimeType = URLConnection.guessContentTypeFromName(filename)
-        val body = MultiPartFormDataContent(
-            formData {
-                this.append(
-                    "file",
-                    byteArray,
-                    Headers.build {
-                        append(HttpHeaders.ContentType, mimeType)
-                        append(HttpHeaders.ContentDisposition, "filename=$filename")
-                    })
-                this.append(FormPart("encodedComment", comment))
-            }
-        )
-
-        attachmentByObjectId(obj.id).httpPost(
-            requestBody = body,
-            httpHeaders = mapOf(
-                "Connection" to "keep-alive",
-                "Cache-Control" to "no-cache"
-            )
-        )
-        return getAttachments(obj)
-    }
-
-
-    suspend fun deleteAttachment(attachment: InsightAttachment): Pair<Int, String> {
-        return attachmentById(attachment.id).httpDelete()
     }
 
     private val basePath = listOf("rest", "insight", "1.0")
