@@ -342,7 +342,7 @@ object InsightCloudApi {
         val json = httpClient.post<String> {
             url("$BASE_URL/rest/insight/1.0/object/create")
             contentType(ContentType.Application.Json)
-            body = editItem
+            body = JSON.toJSON(editItem)
         }
         val jsonObject = JsonParser().parse(json).asJsonObject
         obj.id = jsonObject.get("id").asInt
@@ -426,7 +426,7 @@ object InsightCloudApi {
         val json = httpClient.put<String> {
             url("$BASE_URL/rest/insight/1.0/object/${obj.id}")
             contentType(ContentType.Application.Json)
-            body = editItem
+            body = JSON.toJSON(editItem)
         }
         val jsonObject = JsonParser.parseString(json).asJsonObject
         obj.id = jsonObject.get("id").asInt
