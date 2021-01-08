@@ -196,7 +196,7 @@ class MainTest : TestCase() {
             val newAttachment = country.addAttachment(uploadFile.name, uploadFile.readBytes(), "MyComment", environment)
             val attachments = country.getAttachments(environment)
             assertTrue(attachments.size == 1)
-            assertTrue(newAttachment.author == attachments.first()!!.author)
+            assertTrue(newAttachment.author == attachments.first().author)
             assertTrue(newAttachment.comment == attachments.first().comment)
             assertTrue(newAttachment.filename == attachments.first().filename)
             assertTrue(newAttachment.filesize == attachments.first().filesize)

@@ -481,7 +481,7 @@ private suspend fun <T : InsightEntity> ExecutionEnvironment.resolveReferences(o
     return obj
 }
 
-private fun <T : InsightEntity> ExecutionEnvironment.parseObjectToEditItem(
+private fun <T : InsightEntity> parseObjectToEditItem(
     obj: T,
     schema: ObjectTypeSchema
 ): ObjectEditItem {
