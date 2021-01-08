@@ -600,7 +600,7 @@ object InsightCloudApi {
         val result = httpClient.post<HttpResponse>(this.toUrl(BASE_URL)) {
             headers { httpHeaders.onEach { this.append(it.key, it.value) } }
             contentType(ContentType.Application.Json)
-            body = requestBody
+            body = JSON.toJSONString(requestBody)
         }
         return handleResult(result)
     }
@@ -612,7 +612,7 @@ object InsightCloudApi {
         val result = httpClient.put<HttpResponse>(this.toUrl(BASE_URL)) {
             headers { httpHeaders.onEach { this.append(it.key, it.value) } }
             contentType(ContentType.Application.Json)
-            body = requestBody
+            body = JSON.toJSONString(requestBody)
         }
         return handleResult(result)
     }
