@@ -413,7 +413,7 @@ object InsightCloudApi {
         val json = httpClient.post<String> {
             url("$BASE_URL/rest/insight/1.0/comment/create")
             contentType(ContentType.Application.Json)
-            body = InsightCommentBody(id, message)
+            body = JSON.toJSONString(InsightCommentBody(id, message))
         }
         return true
     }
