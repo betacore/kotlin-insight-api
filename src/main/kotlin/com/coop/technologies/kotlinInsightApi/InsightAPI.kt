@@ -604,7 +604,7 @@ private suspend fun Endpoint.httpPost(
     val result = httpClient.post<HttpResponse>(this.toUrl(baseUrl)) {
         headers { httpHeaders.onEach { this.append(it.key, it.value) } }
         contentType(ContentType.Application.Json)
-        body = requestBody
+        body = JSON.toJSONString(requestBody)
     }
     return handleResult(result)
 }
@@ -618,7 +618,7 @@ private suspend fun Endpoint.httpPut(
     val result = httpClient.put<HttpResponse>(this.toUrl(baseUrl)) {
         headers { httpHeaders.onEach { this.append(it.key, it.value) } }
         contentType(ContentType.Application.Json)
-        body = requestBody
+        body = JSON.toJSONString(requestBody)
     }
     return handleResult(result)
 }
