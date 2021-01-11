@@ -4,6 +4,11 @@ import io.ktor.client.*
 import java.util.Collections.emptyList
 import kotlin.reflect.KClass
 
+sealed class HttpError {
+    object BadRequest : HttpError()
+    object ServerError : HttpError()
+}
+
 data class ExecutionEnvironment(
     val baseUrl: String,
     val schemaId: Int,

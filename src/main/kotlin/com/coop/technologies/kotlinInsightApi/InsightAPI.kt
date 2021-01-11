@@ -27,55 +27,62 @@ suspend fun buildEnvironment(
     mapping: Map<KClass<out InsightEntity>, String>,
     pageSize: Int = 50,
     ignoreSubtypes: Boolean = false
-): ExecutionEnvironment {
+): Either<HttpError, ExecutionEnvironment> {
     val httpClient = httpClient(username, password)
-    return ExecutionEnvironment(
-        pageSize = pageSize,
-        baseUrl = url,
-        schemaId = schemaId,
-        ignoreSubtypes = ignoreSubtypes,
-        httpClient = httpClient,
-        objectSchemas = reloadSchema(schemaId, url, httpClient),
-        mapping = mapping
-    )
-}
-
-suspend fun reloadSchema(schemaId: Int, baseUrl: String, httpClient: HttpClient): List<ObjectTypeSchema> {
-    val (_, schemaBody) = objectSchema(schemaId).httpGet(baseUrl, httpClient)
-    val schemas = JSON.parseArray(schemaBody, ObjectTypeSchema::class.java)
-    return schemas.map {
-        val (_, attributeBody) = objectType(it.id).httpGet(baseUrl, httpClient)
-        val attributes =
-            JSON.parseArray(attributeBody, ObjectTypeSchemaAttribute::class.java)
-        it.attributes = attributes
-        it
+    return reloadSchema(schemaId, url, httpClient).map {
+        ExecutionEnvironment(
+            pageSize = pageSize,
+            baseUrl = url,
+            schemaId = schemaId,
+            ignoreSubtypes = ignoreSubtypes,
+            httpClient = httpClient,
+            objectSchemas = it,
+            mapping = mapping
+        )
     }
 }
 
-private suspend fun <T : InsightEntity> ExecutionEnvironment.getObjectsRaw(clazz: KClass<T>): List<InsightObject> {
+suspend fun reloadSchema(
+    schemaId: Int,
+    baseUrl: String,
+    httpClient: HttpClient
+): Either<HttpError, List<ObjectTypeSchema>> {
+    val schemaBody = objectSchema(schemaId).httpGet(baseUrl, httpClient)
+    val schemas = schemaBody.map { JSON.parseArray(it, ObjectTypeSchema::class.java) }
+    return schemas.bind { list ->
+        list.map { schema ->
+            val attributeBody = objectType(schema.id).httpGet(baseUrl, httpClient)
+            attributeBody.map {
+                schema.copy(attributes = JSON.parseArray(it, ObjectTypeSchemaAttribute::class.java))
+            }
+        }.sequence()
+    }
+}
+
+private suspend fun <T : InsightEntity> ExecutionEnvironment.getObjectsRaw(clazz: KClass<T>): Either<HttpError, List<InsightObject>> {
     return getObjectsRawByIQL(clazz, null)
 }
 
 private suspend fun <T : InsightEntity> ExecutionEnvironment.getObjectRaw(
     clazz: KClass<T>,
     id: Int
-): InsightObject? {
+): Either<HttpError, InsightObject?> {
     val iql = "objectId=$id"
-    return getObjectsRawByIQL(clazz, iql).firstOrNull()
+    return getObjectsRawByIQL(clazz, iql).map { it.firstOrNull() }
 }
 
 private suspend fun <T : InsightEntity> ExecutionEnvironment.getObjectRawByName(
     clazz: KClass<T>,
     name: String
-): InsightObject? {
+): Either<HttpError, InsightObject?> {
     val iql = "Name=\"$name\""
-    return getObjectsRawByIQL(clazz, iql).firstOrNull()
+    return getObjectsRawByIQL(clazz, iql).map { it.firstOrNull() }
 }
 
 private suspend fun <T : InsightEntity> ExecutionEnvironment.getObjectsRawByIQL(
     clazz: KClass<T>,
     iql: String?
-): List<InsightObject> {
+): Either<HttpError, List<InsightObject>> {
     log.debug("Getting objects for [${clazz.simpleName}] with [$iql]")
     val objectName = mapping[clazz] ?: ""
     val urlFun: (Int) -> Endpoint = { page: Int ->
@@ -91,83 +98,102 @@ private suspend fun <T : InsightEntity> ExecutionEnvironment.getObjectsRawByIQL(
         )
     }
 
-    val (_, body) = urlFun(1).httpGet(baseUrl, httpClient) // Get the first set of results
-    val result = JSON.parseObject(body, InsightObjectEntries::class.java)
-    val remainingPages = if (result.pageSize > 1) {
-        generateSequence(2) { s -> if (s < result.pageSize) s + 1 else null }
-    } else emptySequence()
+    return urlFun(1).httpGet(baseUrl, httpClient).bind { body ->
+        val result = JSON.parseObject(body, InsightObjectEntries::class.java)
+        val remainingPages = if (result.pageSize > 1) {
+            generateSequence(2) { s -> if (s < result.pageSize) s + 1 else null }
+        } else emptySequence()
 
-    val pageContents = remainingPages.toList().flatMap { page ->
-        val (_, pageBody) = urlFun(page).httpGet(baseUrl, httpClient)
-        JSON.parseObject(pageBody, InsightObjectEntries::class.java).objectEntries
+        val pageContents = remainingPages.toList().map { page ->
+            urlFun(page).httpGet(baseUrl, httpClient)
+                .map {
+                    JSON.parseObject(it, InsightObjectEntries::class.java).objectEntries
+                }
+        }.sequence().map { it.flatten() }
+
+        log.debug("Returning [${(result.objectEntries + pageContents).size}] objects for [${clazz.simpleName}]")
+        pageContents.map { result.objectEntries + it }
     }
-
-    log.debug("Returning [${(result.objectEntries + pageContents).size}] objects for [${clazz.simpleName}]")
-    return result.objectEntries + pageContents
 }
 
-suspend fun <T : InsightEntity> ExecutionEnvironment.getObjects(clazz: KClass<T>): List<T> {
-    val objects = getObjectsRaw(clazz)
-    return parseInsightObjectsToClass(clazz, objects)
+suspend fun <T : InsightEntity> ExecutionEnvironment.getObjects(clazz: KClass<T>): Either<HttpError, List<T>> {
+    return getObjectsRaw(clazz).bind { objects -> parseInsightObjectsToClass(clazz, objects) }
 }
 
-suspend fun <T : InsightEntity> ExecutionEnvironment.getObject(clazz: KClass<T>, id: Int): T? {
-    val obj = getObjectRaw(clazz, id)
-    return parseInsightObjectsToClass(clazz, listOfNotNull(obj)).firstOrNull()
+suspend fun <T : InsightEntity> ExecutionEnvironment.getObject(clazz: KClass<T>, id: Int): Either<HttpError, T?> {
+    return getObjectRaw(clazz, id).bind { obj ->
+        parseInsightObjectsToClass(clazz, listOfNotNull(obj)).map { it.firstOrNull() }
+    }
 }
 
-suspend fun <T : InsightEntity> ExecutionEnvironment.getObjectByName(clazz: KClass<T>, name: String): T? {
-    val obj = getObjectRawByName(clazz, name)
-    return parseInsightObjectsToClass(clazz, listOfNotNull(obj)).firstOrNull()
+suspend fun <T : InsightEntity> ExecutionEnvironment.getObjectByName(
+    clazz: KClass<T>,
+    name: String
+): Either<HttpError, T?> {
+    return getObjectRawByName(clazz, name).bind { obj ->
+        parseInsightObjectsToClass(clazz, listOfNotNull(obj)).map { it.firstOrNull() }
+    }
 }
 
-suspend fun <T : InsightEntity> ExecutionEnvironment.getObjectByIQL(clazz: KClass<T>, iql: String): List<T> {
-    val objects = getObjectsRawByIQL(clazz, iql)
-    return parseInsightObjectsToClass(clazz, objects)
+suspend fun <T : InsightEntity> ExecutionEnvironment.getObjectByIQL(
+    clazz: KClass<T>,
+    iql: String
+): Either<HttpError, List<T>> {
+    return getObjectsRawByIQL(clazz, iql).bind { objects ->
+        parseInsightObjectsToClass(clazz, objects)
+    }
 }
 
-suspend fun <T : InsightEntity> ExecutionEnvironment.createObject(obj: T): T {
+suspend fun <T : InsightEntity> ExecutionEnvironment.createObject(obj: T): Either<HttpError, T> {
     val schema = objectSchemas.first { it.name == mapping[obj::class] }
     val resolvedObj = resolveReferences(obj)
 
     val editItem = parseObjectToEditItem(resolvedObj, schema)
-    val (_, body) = createObject.httpPost(editItem, baseUrl, httpClient)
-    val jsonObject = JSON.parseObject(body)
-    obj.id = jsonObject.getIntValue("id")
-    obj.key = jsonObject.getString("objectKey")
-    return obj
+    return createObject.httpPost(editItem, baseUrl, httpClient)
+        .map { body ->
+            val jsonObject = JSON.parseObject(body)
+            obj.id = jsonObject.getIntValue("id")
+            obj.key = jsonObject.getString("objectKey")
+            obj
+        }
 }
 
-suspend fun ExecutionEnvironment.deleteObject(id: Int): Pair<Int, String> {
+suspend fun ExecutionEnvironment.deleteObject(id: Int): Either<HttpError, String> {
     return objectById(id).httpDelete(baseUrl, httpClient)
 }
 
-suspend fun ExecutionEnvironment.createComment(id: Int, message: String): Pair<Int, String> {
+suspend fun ExecutionEnvironment.createComment(id: Int, message: String): Either<HttpError, String> {
     return createComment.httpPost(InsightCommentBody(id, message), baseUrl, httpClient)
 }
 
-suspend fun <T : InsightEntity> ExecutionEnvironment.updateObject(obj: T): T {
+suspend fun <T : InsightEntity> ExecutionEnvironment.updateObject(obj: T): Either<HttpError, T> {
     val schema = objectSchemas.first { it.name == mapping[obj::class] }
     val resolvedObj = resolveReferences(obj)
 
     val editItem = parseObjectToEditItem(resolvedObj, schema)
-    val (_, body) = objectById(obj.id).httpPut(editItem, baseUrl, httpClient)
-    val jsonObject = JsonParser.parseString(body).asJsonObject
-    obj.id = jsonObject.get("id").asInt
-    obj.key = jsonObject.get("objectKey").asString
-    return obj
+    return objectById(obj.id).httpPut(editItem, baseUrl, httpClient)
+        .map { body ->
+            val jsonObject = JsonParser.parseString(body).asJsonObject
+            obj.id = jsonObject.get("id").asInt
+            obj.key = jsonObject.get("objectKey").asString
+            obj
+        }
 }
 
 
-suspend fun <T : InsightEntity> ExecutionEnvironment.getHistory(obj: T): MutableList<InsightHistoryItem> {
-    val (_, body) = objectHistoryById(obj.id).httpGet(baseUrl, httpClient)
-    return JSON.parseArray(body, InsightHistoryItem::class.java)
+suspend fun <T : InsightEntity> ExecutionEnvironment.getHistory(obj: T): Either<HttpError, List<InsightHistoryItem>> {
+    return objectHistoryById(obj.id).httpGet(baseUrl, httpClient).map { body ->
+        JSON.parseArray(body, InsightHistoryItem::class.java)
+    }
+
 }
 
 
-suspend fun <T : InsightEntity> ExecutionEnvironment.getAttachments(obj: T): MutableList<InsightAttachment> {
-    val (_, body) = attachmentByObjectId(obj.id).httpGet(baseUrl, httpClient)
-    return JSON.parseArray(body, InsightAttachment::class.java)
+suspend fun <T : InsightEntity> ExecutionEnvironment.getAttachments(obj: T): Either<HttpError, List<InsightAttachment>> {
+    return attachmentByObjectId(obj.id).httpGet(baseUrl, httpClient)
+        .map { body ->
+            JSON.parseArray(body, InsightAttachment::class.java)
+        }
 }
 
 
@@ -181,7 +207,7 @@ suspend fun <T : InsightEntity> ExecutionEnvironment.uploadAttachment(
     filename: String,
     byteArray: ByteArray,
     comment: String = ""
-): MutableList<InsightAttachment> {
+): Either<HttpError, List<InsightAttachment>> {
     val mimeType = URLConnection.guessContentTypeFromName(filename)
     val body = MultiPartFormDataContent(
         formData {
@@ -209,7 +235,7 @@ suspend fun <T : InsightEntity> ExecutionEnvironment.uploadAttachment(
 }
 
 
-suspend fun ExecutionEnvironment.deleteAttachment(attachment: InsightAttachment): Pair<Int, String> {
+suspend fun ExecutionEnvironment.deleteAttachment(attachment: InsightAttachment): Either<HttpError, String> {
     return attachmentById(attachment.id).httpDelete(baseUrl, httpClient)
 }
 
@@ -217,11 +243,11 @@ suspend fun ExecutionEnvironment.deleteAttachment(attachment: InsightAttachment)
 private suspend fun ExecutionEnvironment.resolveInsightReferences(
     objectType: String,
     ids: Set<Int>
-): List<InsightObject> {
+): Either<HttpError, List<InsightObject>> {
     log.debug("Resolving references for objectType [$objectType]")
     val chunkSize = 50
     val results = ids.chunked(chunkSize).map { idList ->
-        val (_, body) = objectsByIql(
+        objectsByIql(
             if (ignoreSubtypes) {
                 "objectType=\"$objectType\" and objectId in (${idList.joinToString(",")})"
             } else {
@@ -230,36 +256,40 @@ private suspend fun ExecutionEnvironment.resolveInsightReferences(
             schemaId,
             chunkSize
         ).httpGet(baseUrl, httpClient)
-        JSON.parseObject(body, InsightObjectEntries::class.java).objectEntries
-    }
+            .map { body ->
+                JSON.parseObject(body, InsightObjectEntries::class.java).objectEntries
+            }
+    }.sequence().map { it.flatten() }
     log.debug("Resolved references for objectType [$objectType]")
-    return results.flatten()
+    return results
 }
 
 
 private suspend fun <T : InsightEntity> ExecutionEnvironment.parseInsightObjectsToClass(
     clazz: KClass<T>,
     objects: List<InsightObject>
-): List<T> {
+): Either<HttpError, List<T>> {
     log.debug("Collecting references for objects of type [${clazz.simpleName}]")
-    val refs = resolveReferences(buildReferenceMap(objects, clazz), clazz)
+    val ref = resolveReferences(buildReferenceMap(objects, clazz), clazz)
 
     log.debug("Parsing objects of type [${clazz.simpleName}]")
-    return objects.map { obj ->
-        log.trace("Parsing object [${obj.label}]")
-        val references = buildReferenceMap(listOf(obj), clazz)
-        val fieldsMap = clazz.declaredMemberProperties.map {
-            it.name.capitalize() to it.returnType.jvmErasure
-        }.toMap()
-        val id = listOf("Id" to obj.id).toMap()
-        val values =
-            obj.attributes.filter { it.objectTypeAttribute?.referenceObjectType == null }.map { attribute ->
-                attribute.objectTypeAttribute?.name to
-                        if (attribute.objectAttributeValues.size == 1) attribute.objectAttributeValues.first().value
-                        else attribute.objectAttributeValues.map { it.value }
+    return ref.map { refs ->
+        objects.map { obj ->
+            log.trace("Parsing object [${obj.label}]")
+            val references = buildReferenceMap(listOf(obj), clazz)
+            val fieldsMap = clazz.declaredMemberProperties.map {
+                it.name.capitalize() to it.returnType.jvmErasure
             }.toMap()
-        val allValues = id + values
-        parseObject(clazz, fieldsMap, allValues, references, refs)
+            val id = listOf("Id" to obj.id).toMap()
+            val values =
+                obj.attributes.filter { it.objectTypeAttribute?.referenceObjectType == null }.map { attribute ->
+                    attribute.objectTypeAttribute?.name to
+                            if (attribute.objectAttributeValues.size == 1) attribute.objectAttributeValues.first().value
+                            else attribute.objectAttributeValues.map { it.value }
+                }.toMap()
+            val allValues = id + values
+            parseObject(clazz, fieldsMap, allValues, references, refs)
+        }
     }
 }
 
@@ -273,11 +303,11 @@ private fun <S : Any> KClass<*>.toSuperclass(superclass: KClass<S>): KClass<S> =
 private suspend fun <T : InsightEntity> ExecutionEnvironment.resolveReferences(
     referenceMap: Map<String?, InsightReference<T>?>,
     clazz: KClass<T>
-) =
+): Either<HttpError, Map<String?, List<InsightEntity>>> =
     referenceMap.mapNotNull { (field, ref) ->
         log.trace("Resolving Reference for field $field")
         when (ref?.clazzToParse) {
-            null -> null
+            null -> (null to emptyList<InsightEntity>()).right()
             List::class.java -> {
                 val referenceType =
                     clazz.primaryConstructor
@@ -285,28 +315,37 @@ private suspend fun <T : InsightEntity> ExecutionEnvironment.resolveReferences(
                         ?.first { it.name?.capitalize() == field }
                         ?.type
                         ?.arguments?.firstOrNull()?.type?.jvmErasure
-                when {
+                val x: Either<HttpError, Pair<String?, List<InsightEntity>>> = when {
                     referenceType == InsightEntity::class -> {
-                        field to ref.objects.map { InsightEntity(it.first, it.second, "") }
+                        (field to ref.objects.map { InsightEntity(it.first, it.second, "") }).right()
                     }
-                    referenceType?.isSubclassOf(InsightEntity::class) ?: false ->
-                        field to parseInsightObjectsToClass(
-                            referenceType!!.toSuperclass(InsightEntity::class),
-                            resolveInsightReferences(ref.objectType, ref.objects.map { it.first }.toSet())
-                        )
-                    else -> null
+                    referenceType?.isSubclassOf(InsightEntity::class) == true ->
+                        resolveInsightReferences(
+                            ref.objectType,
+                            ref.objects.map { it.first }.toSet()
+                        ).bind { objects ->
+                            parseInsightObjectsToClass(
+                                referenceType!!.toSuperclass(InsightEntity::class),
+                                objects
+                            ).map { field to it }
+                        }
+                    else -> Pair(null, emptyList<InsightEntity>()).right()
                 }
+                x.map { it }
             }
             else -> {
-                ref.let {
-                    field to parseInsightObjectsToClass(
-                        ref.clazzToParse,
-                        resolveInsightReferences(ref.objectType, ref.objects.map { it.first }.toSet())
-                    )
+                ref.let { ref ->
+                    resolveInsightReferences(ref.objectType, ref.objects.map { it.first }.toSet())
+                        .bind { objects ->
+                            parseInsightObjectsToClass(
+                                ref.clazzToParse,
+                                objects
+                            ).map { field to it }
+                        }
                 }
             }
         }
-    }.toMap()
+    }.sequence().map { it.toMap() }
 
 
 private fun <T : InsightEntity> buildReferenceMap(
@@ -445,18 +484,18 @@ private fun <T : InsightEntity> insertReferenced(
 private suspend fun ExecutionEnvironment.transformList(
     parameter: KParameter,
     value: Any?
-): List<Any?> {
+): Either<HttpError, List<Any?>> {
     val outClass = parameter.type.arguments.first().type?.jvmErasure
     return when {
-        outClass.isPrimitive() -> (value as List<Any?>?).orEmpty().map { outClass.transformPrimitive(it) }
+        outClass.isPrimitive() -> (value as List<Any?>?).orEmpty().map { outClass.transformPrimitive(it) }.right()
         else -> {
             if (mapping.keys.contains(outClass))
-                (value as List<InsightObject>?).orEmpty().flatMap {
+                (value as List<InsightObject>?).orEmpty().map {
                     parseInsightObjectsToClass(
                         mapping.keys.first { key -> key == outClass },
                         listOf(it)
                     )
-                }
+                }.sequence().map { it.flatten() }
             else TODO("Unknown outClass for List: ${outClass?.simpleName}")
         }
     }
@@ -473,9 +512,12 @@ private suspend fun <T : InsightEntity> ExecutionEnvironment.resolveReferences(o
         val item = it.get(obj) as InsightEntity
         if (item.id == -1 || item.key.isBlank()) {
             // get entity by name, if not exists create
-            val resolvedObject = getObjectByName(item::class, it.name) ?: createObject(item)
-            item.id = resolvedObject.id
-            item.key = resolvedObject.key
+            getObjectByName(item::class, it.name).bind { objectOrNull ->
+                objectOrNull?.right() ?: createObject(item)
+            }.map { entity ->
+                item.id = entity.id
+                item.key = entity.key
+            }
         }
     }
     return obj
@@ -518,122 +560,6 @@ private fun <T : InsightEntity> parseObjectToEditItem(
     return ObjectEditItem(schema.id, attributes)
 }
 
-private val basePath = listOf("rest", "insight", "1.0")
-private val createComment = Endpoint(basePath + listOf("comment", "create"))
-private val createObject = Endpoint(basePath + listOf("object", "create"))
-
-private fun objectSchema(schemaId: Int): Endpoint =
-    Endpoint(
-        basePath + listOf("objectschema", "$schemaId", "objecttypes", "flat")
-    )
-
-private fun objectType(schemaId: Int): Endpoint =
-    Endpoint(
-        basePath + listOf("objecttype", "$schemaId", "attributes")
-    )
-
-private fun objectsByIql(iql: String, schemaId: Int, pageSize: Int): Endpoint =
-    Endpoint(
-        basePath + listOf("iql", "objects"),
-        mapOf(
-            "iql" to iql,
-            "objectSchemaId" to "$schemaId",
-            "resultPerPage" to "$pageSize",
-            "includeTypeAttributes" to "true"
-        )
-    )
-
-private fun objectsByIql(iql: String, schemaId: Int, pageSize: Int, page: Int): Endpoint =
-    Endpoint(
-        basePath + listOf("iql", "objects"),
-        mapOf(
-            "iql" to iql,
-            "objectSchemaId" to "$schemaId",
-            "resultPerPage" to "$pageSize",
-            "includeTypeAttributes" to "true",
-            "page" to "$page"
-        )
-    )
-
-private fun objectById(id: Int): Endpoint =
-    Endpoint(
-        basePath + listOf("object", "$id")
-    )
-
-private fun objectHistoryById(id: Int): Endpoint =
-    Endpoint(
-        basePath + listOf("object", "history", "$id")
-    )
-
-private fun attachmentByObjectId(objectId: Int): Endpoint =
-    Endpoint(
-        basePath + listOf("attachments", "object", "$objectId")
-    )
-
-private fun attachmentById(attachmentId: Int): Endpoint =
-    Endpoint(
-        basePath + listOf("attachments", "$attachmentId")
-    )
-
-private suspend fun handleResult(result: HttpResponse): Pair<Int, String> =
-    when (result.status.value) { // TODO Improve error handling
-        in 200..299 -> result.status.value to result.readText()
-        in 400..499 -> throw ResponseException(result)
-        in 500..599 -> throw ResponseException(result)
-        else -> throw ResponseException(result)
-    }
-
-private suspend fun Endpoint.httpGet(
-    baseUrl: String,
-    httpClient: HttpClient,
-    httpHeaders: Map<String, String> = emptyMap()
-): Pair<Int, String> {
-    val result = httpClient.get<HttpResponse>(this.toUrl(baseUrl)) {
-        headers { httpHeaders.onEach { this.append(it.key, it.value) } }
-        contentType(ContentType.Application.Json)
-    }
-    return handleResult(result)
-}
-
-private suspend fun Endpoint.httpPost(
-    requestBody: Any,
-    baseUrl: String,
-    httpClient: HttpClient,
-    httpHeaders: Map<String, String> = emptyMap()
-): Pair<Int, String> {
-    val result = httpClient.post<HttpResponse>(this.toUrl(baseUrl)) {
-        headers { httpHeaders.onEach { this.append(it.key, it.value) } }
-        contentType(ContentType.Application.Json)
-        body = JSON.toJSONString(requestBody)
-    }
-    return handleResult(result)
-}
-
-private suspend fun Endpoint.httpPut(
-    requestBody: Any,
-    baseUrl: String,
-    httpClient: HttpClient,
-    httpHeaders: Map<String, String> = emptyMap()
-): Pair<Int, String> {
-    val result = httpClient.put<HttpResponse>(this.toUrl(baseUrl)) {
-        headers { httpHeaders.onEach { this.append(it.key, it.value) } }
-        contentType(ContentType.Application.Json)
-        body = JSON.toJSONString(requestBody)
-    }
-    return handleResult(result)
-}
-
-private suspend fun Endpoint.httpDelete(
-    baseUrl: String,
-    httpClient: HttpClient,
-    httpHeaders: Map<String, String> = emptyMap()
-): Pair<Int, String> {
-    val result = httpClient.delete<HttpResponse>(this.toUrl(baseUrl)) {
-        headers { httpHeaders.onEach { this.append(it.key, it.value) } }
-        contentType(ContentType.Application.Json)
-    }
-    return handleResult(result)
-}
-
 private val log = LoggerFactory.getLogger("com.coop.technologies.kotlinInsightApi.InsightApi")
+
 
