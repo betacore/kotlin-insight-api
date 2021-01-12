@@ -14,7 +14,7 @@ fun Endpoint.toUrl(baseUrl: String): String =
 open class InsightEntity(
     var id: Int = -1,
     var key: String = "",
-    val name: String = ""
+    open val name: String = ""
 ) {
     suspend fun save() {
         if (id == -1) {
