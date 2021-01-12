@@ -288,8 +288,8 @@ object InsightCloudApi {
                             ?.type
                             ?.arguments?.firstOrNull()?.type?.jvmErasure
                     when {
-                        referenceType == InsightEntity::class -> {
-                            field to ref.objects.map { InsightEntity(it.first, it.second, "") }
+                        referenceType == SimpleEntity::class -> {
+                            field to ref.objects.map { SimpleEntity("") }
                         }
                         referenceType?.isSubclassOf(InsightEntity::class) ?: false ->
                             field to parseInsightObjectsToClass(

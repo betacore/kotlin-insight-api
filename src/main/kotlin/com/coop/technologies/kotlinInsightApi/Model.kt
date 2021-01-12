@@ -11,6 +11,8 @@ data class Endpoint(
 fun Endpoint.toUrl(baseUrl: String): String =
     "$baseUrl/${path.joinToString("/")}?${queryParams.map { (k,v) -> "$k=$v" }.joinToString("&")}"
 
+data class SimpleEntity(override val name: String): InsightEntity()
+
 abstract class InsightEntity {
     open var id: Int = -1
     open var key: String = ""
