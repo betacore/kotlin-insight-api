@@ -280,7 +280,7 @@ object InsightCloudApi {
             log.trace("Resolving Reference for field $field")
             when (ref?.clazzToParse) {
                 null -> null
-                List::class.java -> {
+                List::class -> {
                     val referenceType =
                         clazz.primaryConstructor
                             ?.parameters
@@ -362,7 +362,7 @@ object InsightCloudApi {
 
     private fun <T : Any> KClass<T>?.isList(referenceIsNull: Boolean): Boolean =
         when {
-            this == List::class.java && referenceIsNull -> true
+            this == List::class && referenceIsNull -> true
             else -> false
         }
 
@@ -440,7 +440,7 @@ object InsightCloudApi {
             referenceObjects?.filter { it.id == referenceId }.orEmpty()
         }.orEmpty()
 
-        return if (reference?.clazzToParse == List::class.java) intermediate
+        return if (reference?.clazzToParse == List::class) intermediate
         else intermediate.firstOrNull()
     }
 
