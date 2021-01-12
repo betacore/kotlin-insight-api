@@ -11,11 +11,11 @@ data class Endpoint(
 fun Endpoint.toUrl(baseUrl: String): String =
     "$baseUrl/${path.joinToString("/")}?${queryParams.map { (k,v) -> "$k=$v" }.joinToString("&")}"
 
-open class InsightEntity(
-    open var id: Int = -1,
-    open var key: String = "",
-    open val name: String = ""
-) {
+abstract class InsightEntity {
+    open var id: Int = -1
+    open var key: String = ""
+    abstract val name: String
+
     suspend fun save() {
         if (id == -1) {
             InsightCloudApi.createObject(this)
