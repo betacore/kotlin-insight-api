@@ -197,6 +197,11 @@ data class Actor(
     val name: String
 )
 
+data class InsightErrorResponse(
+    val errorMessages: List<String>,
+    val errors: Map<String,String>
+)
+
 data class InsightAttachment(
     val id: Int,
     val author: String,
