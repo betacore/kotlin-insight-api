@@ -12,8 +12,8 @@ fun Endpoint.toUrl(baseUrl: String): String =
     "$baseUrl/${path.joinToString("/")}?${queryParams.map { (k,v) -> "$k=$v" }.joinToString("&")}"
 
 open class InsightEntity(
-    var id: Int = -1,
-    var key: String = "",
+    open var id: Int = -1,
+    open var key: String = "",
     open val name: String = ""
 ) {
     suspend fun save() {
