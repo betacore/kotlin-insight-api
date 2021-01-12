@@ -591,7 +591,6 @@ object InsightCloudApi {
     private suspend fun Endpoint.httpGet(httpHeaders: Map<String, String> = emptyMap()): Pair<Int, String> {
         val result = httpClient.get<HttpResponse>(this.toUrl(BASE_URL)) {
             headers { httpHeaders.onEach { this.append(it.key, it.value) } }
-            contentType(ContentType.Application.Json)
         }
         return handleResult(result)
     }
