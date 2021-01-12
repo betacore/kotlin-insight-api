@@ -3,29 +3,6 @@ package com.coop.technologies.kotlinInsightApi
 import java.util.Collections.emptyList
 import kotlin.reflect.KClass
 
-// sealed class Either<out A, out B> {
-//     data class Left<A,B>(val a: A): Either<A,B>()
-//     data class Right<A,B>(val b: B): Either<A,B>()
-// }
-//
-// fun <A,B,C> Either<A,B>.map(f: (B)->C): Either<A,C> =
-//     when(this) {
-//         is Either.Left -> Either.Left(this.a)
-//         is Either.Right -> Either.Right(f(this.b))
-//     }
-//
-// fun <A,B,C> Either<A,B>.bind(f: (B)->Either<A,C>): Either<A,C> =
-//     when(this) {
-//         is Either.Left -> Either.Left(this.a)
-//         is Either.Right -> f(this.b)
-//     }
-//
-// sealed class HttpError {
-//     object BadRequest : HttpError()
-//     object ServerError : HttpError()
-//     object UnknownError : HttpError()
-// }
-
 data class Endpoint(
     val path: List<String>,
     val queryParams: Map<String,String> = emptyMap()
