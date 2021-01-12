@@ -11,12 +11,12 @@ data class Endpoint(
 fun Endpoint.toUrl(baseUrl: String): String =
     "$baseUrl/${path.joinToString("/")}?${queryParams.map { (k,v) -> "$k=$v" }.joinToString("&")}"
 
-data class SimpleEntity(override val name: String): InsightEntity()
+data class SimpleEntity(override var name: String): InsightEntity()
 
 abstract class InsightEntity {
     open var id: Int = -1
-    open var key: String = ""
-    abstract val name: String
+    var key: String = ""
+    abstract var name: String
 
     suspend fun save() {
         if (id == -1) {
