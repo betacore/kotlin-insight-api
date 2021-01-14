@@ -578,7 +578,7 @@ object InsightCloudApi {
         )
 
     private suspend fun handleResult(result: HttpResponse): Pair<Int, String> =
-        when (result.status.value) { // TODO Improve error handling
+        when (result.status.value) {
             in 200..299 -> result.status.value to result.readText()
             in 400..499 -> {
                 val errorResponse = JSON.parseObject(result.readText(), InsightErrorResponse::class.java)
