@@ -1,16 +1,17 @@
 package com.coop.technologies.kotlinInsightApi
 
-import java.io.File
 import java.util.Collections.emptyList
+import kotlin.reflect.KClass
 
-data class EntityList<T>(
-    val entities: List<T>
+data class Endpoint(
+    val path: List<String>,
+    val queryParams: Map<String,String> = emptyMap()
 )
 
-data class InsightSimpleObject(
-    override var id: Int,
-    override var name: String
-): InsightEntity()
+fun Endpoint.toUrl(baseUrl: String): String =
+    "$baseUrl/${path.joinToString("/")}?${queryParams.map { (k,v) -> "$k=$v" }.joinToString("&")}"
+
+data class SimpleEntity(override var name: String): InsightEntity()
 
 abstract class InsightEntity {
     open var id: Int = -1
@@ -34,20 +35,20 @@ abstract class InsightEntity {
     }
 
     suspend fun getHistory(): List<InsightHistoryItem> {
-        if(id == -1){
+        if (id == -1) {
             return emptyList()
         }
         return InsightCloudApi.getHistory(this)
     }
 
     suspend fun getAttachments(): List<InsightAttachment> {
-        if(id == -1){
+        if (id == -1) {
             return emptyList()
         }
         return InsightCloudApi.getAttachments(this)
     }
 
-    suspend fun comment(message: String): Unit {
+    suspend fun comment(message: String) {
         if (id != -1) {
             InsightCloudApi.createComment(this.id, message)
         }
@@ -58,21 +59,22 @@ abstract class InsightEntity {
     }
 }
 
+
 object InsightFactory {
-    suspend inline fun <reified T: InsightEntity> findAll(): List<T> {
-        return InsightCloudApi.getObjects(T::class.java)
+    suspend inline fun <reified T : InsightEntity> findAll(): List<T> {
+        return InsightCloudApi.getObjects(T::class)
     }
 
-    suspend inline fun <reified T: InsightEntity> findById(id: Int): T? {
-        return InsightCloudApi.getObject(T::class.java, id)
+    suspend inline fun <reified T : InsightEntity> findById(id: Int): T? {
+        return InsightCloudApi.getObject(T::class, id)
     }
 
-    suspend inline fun <reified T: InsightEntity> findByName(name: String): T? {
-        return InsightCloudApi.getObjectByName(T::class.java, name)
+    suspend inline fun <reified T : InsightEntity> findByName(name: String): T? {
+        return InsightCloudApi.getObjectByName(T::class, name)
     }
 
-    suspend inline fun <reified T: InsightEntity> findByIQL(iql: String): List<T> {
-        return InsightCloudApi.getObjectByIQL(T::class.java, iql)
+    suspend inline fun <reified T : InsightEntity> findByIQL(iql: String): List<T> {
+        return InsightCloudApi.getObjectByIQL(T::class, iql)
     }
 }
 
@@ -120,11 +122,6 @@ data class ObjectType(
     val objectSchemaId: Int
 )
 
-data class InsightObjectAttribute(
-    val id: Int,
-    val objectTypeAttribute: List<InsightAttribute>
-)
-
 data class InsightCommentBody(
     val objectId: Int,
     val comment: String,
@@ -139,32 +136,29 @@ data class InsightAttribute(
     val objectAttributeValues: List<ObjectAttributeValue>
 )
 
-data class ObjectTypeAttribute (
+data class ObjectTypeAttribute(
     val id: Int,
     val name: String,
     val referenceObjectTypeId: Int?,
     val referenceObjectType: ObjectType?
 )
 
-data class InsightReference<A: InsightEntity>(
+
+data class InsightReference<A : InsightEntity>(
     val objectType: String,
-    val objects: List<Pair<Int,String>>,
-    val clazzToParse: Class<A>
+    val objects: List<Pair<Int, String>>,
+    val clazzToParse: KClass<A>
 )
 
 data class ObjectAttributeValue(
     val value: Any?,
-    val displayValude: Any?,
+    val displayValue: Any?,
     val referencedObject: ReferencedObject?
 )
 
 data class ReferencedObject(
     val id: Int,
     val label: String
-)
-
-data class InsightAttributeEntry (
-    val value : Any
 )
 
 data class InsightHistoryItem(
@@ -182,9 +176,9 @@ data class Actor(
     val name: String
 )
 
-data class InsightAttachmentCreate(
-    val seconds: Long,
-    val nanos: Long
+data class InsightErrorResponse(
+    val errorMessages: List<String>,
+    val errors: Map<String,String>
 )
 
 data class InsightAttachment(
@@ -198,24 +192,17 @@ data class InsightAttachment(
     val commentOutput: String,
     val url: String
 ) {
+
     suspend fun getBytes(): ByteArray {
         return InsightCloudApi.downloadAttachment(this)
     }
 
+
     suspend fun delete(): Boolean {
-        if(id <= 0){
+        if (id <= 0) {
             return false
         }
         InsightCloudApi.deleteAttachment(this)
         return true
     }
 }
-
-data class AttachmentUpload(
-    val file: File,
-    val encodedComment: String
-)
-
-//suspend fun InsightEntity.save() {
-//    InsightCloudApi.updateObject(this, this.id)
-//}
