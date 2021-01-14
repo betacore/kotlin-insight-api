@@ -584,7 +584,7 @@ object InsightCloudApi {
                 val errorResponse = JSON.parseObject(result.readText(), InsightErrorResponse::class.java)
                 throw IllegalStateException("${errorResponse.errors.values}", ResponseException(result))
             }
-            in 500..599 -> throw ResponseException(result)
+            in 500..599 -> throw IllegalStateException("Insight responded with an error ${result.status.description}", ResponseException(result))
             else -> throw ResponseException(result)
         }
 
